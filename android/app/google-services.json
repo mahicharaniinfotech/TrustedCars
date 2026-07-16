@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "708919706766",
+    "project_id": "trustedcars-20e2f",
+    "storage_bucket": "trustedcars-20e2f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:708919706766:android:71fe4a32652516916335df",
+        "android_client_info": {
+          "package_name": "com.kdmc.kdmc_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC0RwfJxQGYUEd6Tyz6SBVgIt8yZMByxoA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
