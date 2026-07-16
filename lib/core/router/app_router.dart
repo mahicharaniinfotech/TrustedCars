@@ -7,6 +7,7 @@ import '../../features/auth/screens/otp_verification_screen.dart';
 import '../../features/auth/screens/complete_profile_screen.dart';
 import '../../features/marketplace/screens/home_screen.dart';
 import '../../features/search/screens/search_screen.dart';
+import '../../features/marketplace/screens/vehicle_detail_screen.dart';
 
 /// Single source of truth for navigation. Redirect logic below is what
 /// keeps a logged-out user out of the dashboard, sends a freshly-verified
@@ -61,6 +62,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/dashboard', builder: (context, state) => const HomeScreen()),
       GoRoute(path: '/search', builder: (context, state) => const SearchScreen()),
+      GoRoute(
+        path: '/vehicle/:id',
+        builder: (context, state) {
+          final id = int.parse(state.pathParameters['id']!);
+          return VehicleDetailScreen(vehicleId: id);
+        },
+      ),
     ],
   );
 });

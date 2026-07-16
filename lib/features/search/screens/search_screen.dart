@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_dimensions.dart';
 import '../../../shared/widgets/vehicle_card.dart';
 import '../../marketplace/models/vehicle.dart';
@@ -112,9 +113,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               isFavorite: favoriteIds.contains(vehicle.id),
                               onFavoriteToggle: () =>
                                   ref.read(favoriteIdsProvider.notifier).toggle(vehicle.id),
-                              onTap: () {
-                                // Vehicle detail screen lands in Sprint 4.
-                              },
+                              onTap: () => context.go('/vehicle/${vehicle.id}'),
                             );
                           },
                         );

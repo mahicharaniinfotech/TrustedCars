@@ -18,3 +18,23 @@ final vehiclesByCategoryProvider =
     FutureProvider.family<List<Vehicle>, VehicleCategory>((ref, category) {
   return ref.watch(vehicleRepositoryProvider).getVehiclesByCategory(category);
 });
+
+/// Sprint 4 -- a single vehicle's full detail, including seller/dealer info.
+final vehicleDetailProvider = FutureProvider.family<Vehicle?, int>((ref, vehicleId) {
+  return ref.watch(vehicleRepositoryProvider).getVehicleDetail(vehicleId);
+});
+
+/// "Similar vehicles" row on the detail screen -- same brand & category,
+/// excluding the vehicle being viewed. Takes a record rather than the
+/// whole Vehicle object so Riverpod's family caching compares by value
+/// (Vehicle itself has no custom == , so two logically-identical
+/// instances wouldn't be treated as the same cache key).
+final similarVehiclesProvider =
+    FutureProvider.family<List<Vehicle>, ({int excludeVehicleId, int? brandId, VehicleCategory category})>(
+        (ref, params) {
+  return ref.watch(vehicleRepositoryProvider).getSimilarVehicles(
+        excludeVehicleId: params.excludeVehicleId,
+        brandId: params.brandId,
+        category: params.category,
+      );
+});
