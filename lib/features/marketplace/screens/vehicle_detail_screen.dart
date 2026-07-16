@@ -43,9 +43,15 @@ class _NotFound extends StatelessWidget {
         children: [
           const Icon(Icons.search_off, size: 48),
           const SizedBox(height: AppSpacing.sm),
-          Text('This listing is no longer available', style: Theme.of(context).textTheme.bodyMedium),
+          Text(
+            'This listing is no longer available',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
           const SizedBox(height: AppSpacing.md),
-          TextButton(onPressed: () => Navigator.of(context).maybePop(), child: const Text('Go back')),
+          TextButton(
+            onPressed: () => Navigator.of(context).maybePop(),
+            child: const Text('Go back'),
+          ),
         ],
       ),
     );
@@ -58,7 +64,8 @@ class _VehicleDetailContent extends ConsumerStatefulWidget {
   final Vehicle vehicle;
 
   @override
-  ConsumerState<_VehicleDetailContent> createState() => _VehicleDetailContentState();
+  ConsumerState<_VehicleDetailContent> createState() =>
+      _VehicleDetailContentState();
 }
 
 class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
@@ -92,7 +99,8 @@ class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
             _CircleIconButton(
               icon: isFavorite ? Icons.favorite : Icons.favorite_border,
               color: isFavorite ? AppColors.ember : null,
-              onPressed: () => ref.read(favoriteIdsProvider.notifier).toggle(vehicle.id),
+              onPressed: () =>
+                  ref.read(favoriteIdsProvider.notifier).toggle(vehicle.id),
             ),
             const SizedBox(width: AppSpacing.sm),
           ],
@@ -104,7 +112,8 @@ class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
                   controller: _pageController,
                   itemCount: images.length,
                   onPageChanged: (i) => setState(() => _currentImage = i),
-                  itemBuilder: (context, i) => Image.network(images[i], fit: BoxFit.cover),
+                  itemBuilder: (context, i) =>
+                      Image.network(images[i], fit: BoxFit.cover),
                 ),
                 if (images.length > 1)
                   Positioned(
@@ -119,7 +128,9 @@ class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
                           width: i == _currentImage ? 18 : 6,
                           height: 6,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(i == _currentImage ? 1 : 0.5),
+                            color: Colors.white.withValues(
+                              alpha: i == _currentImage ? 1 : 0.5,
+                            ),
                             borderRadius: AppRadius.pillAll,
                           ),
                         );
@@ -143,13 +154,23 @@ class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(vehicle.title, style: theme.textTheme.displayMedium),
+                          Text(
+                            vehicle.title,
+                            style: theme.textTheme.displayMedium,
+                          ),
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(Icons.location_on_outlined, size: 16, color: theme.colorScheme.outline),
+                              Icon(
+                                Icons.location_on_outlined,
+                                size: 16,
+                                color: theme.colorScheme.outline,
+                              ),
                               const SizedBox(width: 2),
-                              Text(vehicle.cityName ?? 'India', style: theme.textTheme.bodyMedium),
+                              Text(
+                                vehicle.cityName ?? 'India',
+                                style: theme.textTheme.bodyMedium,
+                              ),
                             ],
                           ),
                         ],
@@ -157,7 +178,9 @@ class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
                     ),
                     if (vehicle.sellerVerified)
                       TrustBadge(
-                        kind: vehicle.isDealerListing ? TrustBadgeKind.dealer : TrustBadgeKind.owner,
+                        kind: vehicle.isDealerListing
+                            ? TrustBadgeKind.dealer
+                            : TrustBadgeKind.owner,
                       ),
                   ],
                 ),
@@ -167,7 +190,8 @@ class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
                 const SizedBox(height: AppSpacing.lg),
                 _SpecsGrid(vehicle: vehicle),
 
-                if (vehicle.description != null && vehicle.description!.isNotEmpty) ...[
+                if (vehicle.description != null &&
+                    vehicle.description!.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.lg),
                   Text('Description', style: theme.textTheme.headlineMedium),
                   const SizedBox(height: AppSpacing.sm),
@@ -184,7 +208,8 @@ class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
 
                 const SizedBox(height: AppSpacing.lg),
                 AppButton.primary(
-                  label: 'Chat with ${vehicle.isDealerListing ? "Dealer" : "Seller"}',
+                  label:
+                      'Chat with ${vehicle.isDealerListing ? "Dealer" : "Seller"}',
                   icon: Icons.chat_bubble_outline,
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -238,7 +263,11 @@ class _SpecsGrid extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(icon, size: 20, color: Theme.of(context).colorScheme.outline),
+              Icon(
+                icon,
+                size: 20,
+                color: Theme.of(context).colorScheme.outline,
+              ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
@@ -246,7 +275,11 @@ class _SpecsGrid extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(label, style: Theme.of(context).textTheme.bodySmall),
-                    Text(value, style: Theme.of(context).textTheme.labelLarge, overflow: TextOverflow.ellipsis),
+                    Text(
+                      value,
+                      style: Theme.of(context).textTheme.labelLarge,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                 ),
               ),
@@ -267,7 +300,9 @@ class _SellerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final name = vehicle.isDealerListing
-        ? (vehicle.dealerBusinessName ?? vehicle.sellerName ?? 'Verified Dealer')
+        ? (vehicle.dealerBusinessName ??
+              vehicle.sellerName ??
+              'Verified Dealer')
         : (vehicle.sellerName ?? 'Seller');
 
     return Container(
@@ -281,9 +316,11 @@ class _SellerCard extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
             child: Icon(
-              vehicle.isDealerListing ? Icons.storefront_outlined : Icons.person_outline,
+              vehicle.isDealerListing
+                  ? Icons.storefront_outlined
+                  : Icons.person_outline,
               color: theme.colorScheme.primary,
             ),
           ),
@@ -306,7 +343,9 @@ class _SellerCard extends StatelessWidget {
                   )
                 else if (vehicle.sellerVerified)
                   Text(
-                    vehicle.isDealerListing ? 'Verified Dealer' : 'Verified Owner',
+                    vehicle.isDealerListing
+                        ? 'Verified Dealer'
+                        : 'Verified Owner',
                     style: theme.textTheme.bodySmall,
                   ),
               ],
@@ -325,7 +364,11 @@ class _SimilarVehicles extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final params = (excludeVehicleId: vehicle.id, brandId: vehicle.brandId, category: vehicle.category);
+    final params = (
+      excludeVehicleId: vehicle.id,
+      brandId: vehicle.brandId,
+      category: vehicle.category,
+    );
     final similarAsync = ref.watch(similarVehiclesProvider(params));
     final favoriteIds = ref.watch(favoriteIdsProvider).value ?? {};
 
@@ -334,18 +377,23 @@ class _SimilarVehicles extends ConsumerWidget {
       child: similarAsync.when(
         data: (vehicles) => vehicles.isEmpty
             ? Center(
-                child: Text('No similar vehicles found', style: Theme.of(context).textTheme.bodySmall),
+                child: Text(
+                  'No similar vehicles found',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               )
             : ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: vehicles.length,
-                separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+                separatorBuilder: (_, _) =>
+                    const SizedBox(width: AppSpacing.sm),
                 itemBuilder: (context, i) {
                   final v = vehicles[i];
                   return SizedBox(
                     width: 260,
                     child: VehicleCard(
-                      imageUrl: v.primaryImageUrl ??
+                      imageUrl:
+                          v.primaryImageUrl ??
                           'https://images.unsplash.com/photo-1552519507-da3b142c6e3d',
                       title: v.title,
                       price: v.formattedPrice,
@@ -355,7 +403,8 @@ class _SimilarVehicles extends ConsumerWidget {
                       location: v.cityName ?? 'India',
                       verified: true,
                       isFavorite: favoriteIds.contains(v.id),
-                      onFavoriteToggle: () => ref.read(favoriteIdsProvider.notifier).toggle(v.id),
+                      onFavoriteToggle: () =>
+                          ref.read(favoriteIdsProvider.notifier).toggle(v.id),
                       onTap: () => context.go('/vehicle/${v.id}'),
                     ),
                   );
@@ -380,7 +429,7 @@ class _CircleIconButton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(6),
       child: Material(
-        color: Colors.black.withOpacity(0.35),
+        color: Colors.black.withValues(alpha: 0.35),
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),

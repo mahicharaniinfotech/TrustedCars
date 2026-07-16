@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_dimensions.dart';
 import '../../../shared/widgets/vehicle_card.dart';
-import '../../marketplace/models/vehicle.dart';
 import '../providers/favorites_providers.dart';
 import '../widgets/filter_sheet.dart';
 import '../providers/search_providers.dart';

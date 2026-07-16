@@ -37,3 +37,16 @@ final citiesProvider = FutureProvider<List<CityOption>>((ref) async {
       .map((r) => CityOption(id: r['id'] as int, name: r['name'] as String))
       .toList();
 });
+
+/// Models for a specific brand -- used by Sell Vehicle's dependent
+/// brand -> model dropdown (Sprint 5).
+final modelsForBrandProvider = FutureProvider.family<List<BrandOption>, int>((ref, brandId) async {
+  final rows = await supabase
+      .from('vehicle_models')
+      .select('id, name')
+      .eq('brand_id', brandId)
+      .order('name');
+  return (rows as List)
+      .map((r) => BrandOption(id: r['id'] as int, name: r['name'] as String))
+      .toList();
+});
