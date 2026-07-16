@@ -5,7 +5,7 @@ import '../../features/auth/providers/auth_providers.dart';
 import '../../features/auth/screens/phone_entry_screen.dart';
 import '../../features/auth/screens/otp_verification_screen.dart';
 import '../../features/auth/screens/complete_profile_screen.dart';
-import '../../features/dashboard/screens/dashboard_shell_screen.dart';
+import '../../features/marketplace/screens/home_screen.dart';
 
 /// Single source of truth for navigation. Redirect logic below is what
 /// keeps a logged-out user out of the dashboard, sends a freshly-verified
@@ -43,7 +43,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: '/phone', builder: (context, state) => const PhoneEntryScreen()),
+      GoRoute(
+        path: '/phone',
+        builder: (context, state) => const PhoneEntryScreen(),
+      ),
       GoRoute(
         path: '/otp',
         builder: (context, state) {
@@ -58,7 +61,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/complete-profile',
         builder: (context, state) => const CompleteProfileScreen(),
       ),
-      GoRoute(path: '/dashboard', builder: (context, state) => const DashboardShellScreen()),
+      GoRoute(
+        path: '/dashboard',
+        builder: (context, state) => const HomeScreen(),
+      ),
     ],
   );
 });
@@ -68,7 +74,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 /// instant login, logout, or account data changes.
 class _AuthRefreshNotifier extends ChangeNotifier {
   _AuthRefreshNotifier(this.ref) {
+    // ignore: unnecessary_underscores
+    // ignore: unnecessary_underscores
     ref.listen(authStateChangesProvider, (_, __) => notifyListeners());
+    // ignore: unnecessary_underscores
     ref.listen(currentAccountProvider, (_, __) => notifyListeners());
   }
   final Ref ref;

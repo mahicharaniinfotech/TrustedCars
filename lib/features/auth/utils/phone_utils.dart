@@ -1,5 +1,6 @@
 /// KDMC — Phone number helpers
 ///
+// ignore: unintended_html_in_doc_comment
 /// Supabase Auth requires E.164 format (+<country code><number>, no
 /// spaces/dashes). Users just type their 10-digit number; we handle the
 /// +91 prefix here so this logic lives in exactly one place.

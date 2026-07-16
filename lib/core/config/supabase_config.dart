@@ -25,6 +25,7 @@ abstract final class SupabaseConfig {
   static Future<void> init() async {
     await Supabase.initialize(
       url: projectUrl,
+      // ignore: deprecated_member_use
       anonKey: anonKey,
       accessToken: () async {
         return FirebaseAuth.instance.currentUser?.getIdToken();
