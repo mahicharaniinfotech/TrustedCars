@@ -70,7 +70,9 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
       await ref.read(accountRepositoryProvider).ensureAccountExists(userId, phone: widget.phone);
       // Router redirect takes it from here.
     } catch (e) {
-      setState(() => _errorMessage = 'Incorrect code. Please try again.');
+      setState(() => _errorMessage = 'Verify failed: $e');
+      // ignore: avoid_print
+      print('OTP verify error: $e');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
