@@ -9,6 +9,8 @@ import '../../features/marketplace/screens/home_screen.dart';
 import '../../features/search/screens/search_screen.dart';
 import '../../features/marketplace/screens/vehicle_detail_screen.dart';
 import '../../features/sell/screens/sell_vehicle_screen.dart';
+import '../../features/chat/screens/conversation_list_screen.dart';
+import '../../features/chat/screens/chat_screen.dart';
 
 /// Single source of truth for navigation. Redirect logic below is what
 /// keeps a logged-out user out of the dashboard, sends a freshly-verified
@@ -64,6 +66,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/dashboard', builder: (context, state) => const HomeScreen()),
       GoRoute(path: '/search', builder: (context, state) => const SearchScreen()),
       GoRoute(path: '/sell', builder: (context, state) => const SellVehicleScreen()),
+      GoRoute(path: '/messages', builder: (context, state) => const ConversationListScreen()),
+      GoRoute(
+        path: '/chat/:id',
+        builder: (context, state) {
+          final id = int.parse(state.pathParameters['id']!);
+          final extra = state.extra as Map<String, String?>?;
+          return ChatScreen(
+            conversationId: id,
+            otherPartyName: extra?['otherPartyName'],
+            vehicleTitle: extra?['vehicleTitle'],
+          );
+        },
+      ),
       GoRoute(
         path: '/vehicle/:id',
         builder: (context, state) {

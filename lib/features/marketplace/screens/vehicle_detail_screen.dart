@@ -8,6 +8,8 @@ import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/trust_badge.dart';
 import '../../../shared/widgets/vehicle_card.dart';
 import '../../search/providers/favorites_providers.dart';
+import '../../auth/providers/auth_providers.dart';
+import '../../chat/providers/chat_providers.dart';
 import '../models/vehicle.dart';
 import '../providers/marketplace_providers.dart';
 
@@ -71,6 +73,42 @@ class _VehicleDetailContent extends ConsumerStatefulWidget {
 class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
   final _pageController = PageController();
   int _currentImage = 0;
+
+  Future<void> _startChat(
+    BuildContext context,
+    WidgetRef ref,
+    Vehicle vehicle,
+  ) async {
+    final account = ref.read(currentAccountProvider).value;
+    if (account == null) return;
+
+    if (account.id == vehicle.accountId) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("This is your own listing")));
+      return;
+    }
+
+    final conversationId = await ref
+        .read(chatRepositoryProvider)
+        .getOrCreateConversation(
+          vehicleId: vehicle.id,
+          buyerId: account.id,
+          sellerId: vehicle.accountId,
+        );
+
+    if (context.mounted) {
+      context.push(
+        '/chat/$conversationId',
+        extra: {
+          'otherPartyName': vehicle.isDealerListing
+              ? (vehicle.dealerBusinessName ?? vehicle.sellerName)
+              : vehicle.sellerName,
+          'vehicleTitle': vehicle.title,
+        },
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -211,11 +249,7 @@ class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
                   label:
                       'Chat with ${vehicle.isDealerListing ? "Dealer" : "Seller"}',
                   icon: Icons.chat_bubble_outline,
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Chat arrives in Sprint 6')),
-                    );
-                  },
+                  onPressed: () => _startChat(context, ref, vehicle),
                 ),
 
                 const SizedBox(height: AppSpacing.xl),

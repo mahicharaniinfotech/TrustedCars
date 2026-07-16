@@ -32,6 +32,11 @@ class HomeScreen extends ConsumerWidget {
         ),
         actions: [
           IconButton(
+            tooltip: 'Messages',
+            icon: const Icon(Icons.chat_bubble_outline),
+            onPressed: () => context.push('/messages'),
+          ),
+          IconButton(
             tooltip: 'Sign out',
             icon: const Icon(Icons.logout),
             onPressed: () => ref.read(authRepositoryProvider).signOut(),
