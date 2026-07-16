@@ -11,6 +11,7 @@ import '../../features/marketplace/screens/vehicle_detail_screen.dart';
 import '../../features/sell/screens/sell_vehicle_screen.dart';
 import '../../features/chat/screens/conversation_list_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
+import '../../features/dealer/dealer_dashboard_screen.dart';
 
 /// Single source of truth for navigation. Redirect logic below is what
 /// keeps a logged-out user out of the dashboard, sends a freshly-verified
@@ -67,6 +68,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/search', builder: (context, state) => const SearchScreen()),
       GoRoute(path: '/sell', builder: (context, state) => const SellVehicleScreen()),
       GoRoute(path: '/messages', builder: (context, state) => const ConversationListScreen()),
+      GoRoute(path: '/dealer', builder: (context, state) => const DealerDashboardScreen()),
       GoRoute(
         path: '/chat/:id',
         builder: (context, state) {

@@ -76,6 +76,10 @@ class VehicleRepository {
 
     var vehicle = Vehicle.fromMap(row);
 
+    // Fire-and-forget -- a failed view-count bump shouldn't block the
+    // vehicle from rendering.
+    supabase.rpc('increment_vehicle_views', params: {'vehicle_id_param': id}).catchError((_) {});
+
     try {
       final profile = await supabase
           .from('public_profiles')

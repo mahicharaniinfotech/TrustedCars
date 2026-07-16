@@ -34,6 +34,12 @@ class HomeScreen extends ConsumerWidget {
           style: Theme.of(context).textTheme.titleLarge,
         ),
         actions: [
+          if (account?.accountType == AccountType.dealer)
+            IconButton(
+              tooltip: 'Dealer Dashboard',
+              icon: const Icon(Icons.dashboard_outlined),
+              onPressed: () => context.push('/dealer'),
+            ),
           IconButton(
             tooltip: 'Messages',
             icon: const Icon(Icons.chat_bubble_outline),

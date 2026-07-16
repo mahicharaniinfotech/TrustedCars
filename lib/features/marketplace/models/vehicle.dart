@@ -1,3 +1,6 @@
+import '../../auth/models/account.dart' show AccountType;
+export '../../auth/models/account.dart' show AccountType;
+
 enum FuelType { petrol, diesel, cng, electric, hybrid }
 
 enum TransmissionType { manual, automatic }
@@ -5,8 +8,6 @@ enum TransmissionType { manual, automatic }
 enum VehicleStatus { draft, published, sold, removed }
 
 enum VehicleCategory { car, bike, commercial }
-
-enum AccountType { individual, dealer, admin }
 
 T _enumFromString<T>(List<T> values, String? value, T fallback) {
   return values.firstWhere(
@@ -32,6 +33,7 @@ class Vehicle {
     required this.price,
     required this.status,
     required this.isFeatured,
+    this.viewsCount = 0,
     this.brandId,
     this.brandName,
     this.modelName,
@@ -58,6 +60,7 @@ class Vehicle {
   final double price;
   final VehicleStatus status;
   final bool isFeatured;
+  final int viewsCount;
   final int? brandId;
   final String? brandName;
   final String? modelName;
@@ -99,6 +102,7 @@ class Vehicle {
       price: price,
       status: status,
       isFeatured: isFeatured,
+      viewsCount: viewsCount,
       brandId: brandId,
       brandName: brandName,
       modelName: modelName,
@@ -164,6 +168,7 @@ class Vehicle {
       price: (map['price'] as num).toDouble(),
       status: _enumFromString(VehicleStatus.values, map['status'] as String?, VehicleStatus.draft),
       isFeatured: map['is_featured'] as bool? ?? false,
+      viewsCount: map['views_count'] as int? ?? 0,
       brandId: map['brand_id'] as int?,
       brandName: brand?['name'] as String?,
       modelName: model?['name'] as String?,
