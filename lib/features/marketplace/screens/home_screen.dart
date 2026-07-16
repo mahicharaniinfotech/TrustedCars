@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimensions.dart';
 import '../../../shared/widgets/vehicle_card.dart';
+import '../../../shared/widgets/gradient_action_card.dart';
+import '../../../shared/widgets/quick_service_tile.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../search/providers/favorites_providers.dart';
 import '../models/vehicle.dart';
@@ -68,6 +71,68 @@ class HomeScreen extends ConsumerWidget {
             _SearchBarStub(),
             const SizedBox(height: AppSpacing.lg),
 
+            Row(
+              children: [
+                Expanded(
+                  child: GradientActionCard(
+                    title: 'Buy a Vehicle',
+                    subtitle: 'Browse verified listings',
+                    icon: Icons.directions_car_filled,
+                    gradientColors: AppColors.buyGradient,
+                    onTap: () => context.push('/search'),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: GradientActionCard(
+                    title: 'Sell your Vehicle',
+                    subtitle: 'List in minutes, free',
+                    icon: Icons.sell,
+                    gradientColors: AppColors.sellGradient,
+                    onTap: () => context.push('/sell'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                QuickServiceTile(
+                  label: 'Insurance',
+                  icon: Icons.shield_outlined,
+                  gradientColors: AppColors.buyGradient,
+                  comingSoon: true,
+                ),
+                QuickServiceTile(
+                  label: 'Loans',
+                  icon: Icons.account_balance_outlined,
+                  gradientColors: AppColors.sellGradient,
+                  comingSoon: true,
+                ),
+                QuickServiceTile(
+                  label: 'RC Transfer',
+                  icon: Icons.assignment_turned_in_outlined,
+                  gradientColors: AppColors.accentGradient,
+                  comingSoon: true,
+                ),
+                QuickServiceTile(
+                  label: 'Inspection',
+                  icon: Icons.fact_check_outlined,
+                  gradientColors: AppColors.accentGradient,
+                  comingSoon: true,
+                ),
+                QuickServiceTile(
+                  label: 'Favorites',
+                  icon: Icons.favorite_border,
+                  gradientColors: AppColors.sellGradient,
+                  onTap: () => context.push('/search'),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
             Text(
               'Browse by',
               style: Theme.of(context).textTheme.headlineMedium,
@@ -128,7 +193,8 @@ class HomeScreen extends ConsumerWidget {
                     : ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: vehicles.length,
-                        separatorBuilder: (_, _) =>
+                        // ignore: unnecessary_underscores
+                        separatorBuilder: (_, __) =>
                             const SizedBox(width: AppSpacing.sm),
                         itemBuilder: (context, i) => SizedBox(
                           width: 260,
