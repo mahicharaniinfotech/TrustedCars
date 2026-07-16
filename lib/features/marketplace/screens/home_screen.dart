@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_dimensions.dart';
 import '../../../shared/widgets/vehicle_card.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../search/providers/favorites_providers.dart';
 import '../models/vehicle.dart';
 import '../providers/category_filter_provider.dart';
 import '../providers/marketplace_providers.dart';
@@ -18,11 +20,16 @@ class HomeScreen extends ConsumerWidget {
     final account = ref.watch(currentAccountProvider).value;
     final selectedCategory = ref.watch(selectedCategoryProvider);
     final featured = ref.watch(featuredVehiclesProvider);
-    final categoryVehicles = ref.watch(vehiclesByCategoryProvider(selectedCategory));
+    final categoryVehicles = ref.watch(
+      vehiclesByCategoryProvider(selectedCategory),
+    );
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('TrustedCars', style: Theme.of(context).textTheme.titleLarge),
+        title: Text(
+          'TrustedCars',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
         actions: [
           IconButton(
             tooltip: 'Sign out',
@@ -51,7 +58,10 @@ class HomeScreen extends ConsumerWidget {
             _SearchBarStub(),
             const SizedBox(height: AppSpacing.lg),
 
-            Text('Browse by', style: Theme.of(context).textTheme.headlineMedium),
+            Text(
+              'Browse by',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
             const SizedBox(height: AppSpacing.sm),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -61,22 +71,27 @@ class HomeScreen extends ConsumerWidget {
                     label: 'Cars',
                     icon: Icons.directions_car_outlined,
                     isSelected: selectedCategory == VehicleCategory.car,
-                    onTap: () => ref.read(selectedCategoryProvider.notifier).select(VehicleCategory.car),
+                    onTap: () => ref
+                        .read(selectedCategoryProvider.notifier)
+                        .select(VehicleCategory.car),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   CategoryChip(
                     label: 'Bikes',
                     icon: Icons.two_wheeler_outlined,
                     isSelected: selectedCategory == VehicleCategory.bike,
-                    onTap: () => ref.read(selectedCategoryProvider.notifier).select(VehicleCategory.bike),
+                    onTap: () => ref
+                        .read(selectedCategoryProvider.notifier)
+                        .select(VehicleCategory.bike),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   CategoryChip(
                     label: 'Commercial',
                     icon: Icons.local_shipping_outlined,
                     isSelected: selectedCategory == VehicleCategory.commercial,
-                    onTap: () =>
-                        ref.read(selectedCategoryProvider.notifier).select(VehicleCategory.commercial),
+                    onTap: () => ref
+                        .read(selectedCategoryProvider.notifier)
+                        .select(VehicleCategory.commercial),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   const CategoryChip(
@@ -90,7 +105,10 @@ class HomeScreen extends ConsumerWidget {
             ),
 
             const SizedBox(height: AppSpacing.xl),
-            Text('Featured Vehicles', style: Theme.of(context).textTheme.headlineMedium),
+            Text(
+              'Featured Vehicles',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
             const SizedBox(height: AppSpacing.sm),
             SizedBox(
               height: 300,
@@ -101,14 +119,17 @@ class HomeScreen extends ConsumerWidget {
                         scrollDirection: Axis.horizontal,
                         itemCount: vehicles.length,
                         // ignore: unnecessary_underscores
-                        separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(width: AppSpacing.sm),
                         itemBuilder: (context, i) => SizedBox(
                           width: 260,
                           child: _VehicleCardFromModel(vehicle: vehicles[i]),
                         ),
                       ),
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => _EmptyState(message: 'Could not load featured vehicles: $e'),
+                error: (e, _) => _EmptyState(
+                  message: 'Could not load featured vehicles: $e',
+                ),
               ),
             ),
 
@@ -120,21 +141,28 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(height: AppSpacing.sm),
             categoryVehicles.when(
               data: (vehicles) => vehicles.isEmpty
-                  ? _EmptyState(message: 'No ${_categoryLabel(selectedCategory).toLowerCase()} listed yet.')
+                  ? _EmptyState(
+                      message:
+                          'No ${_categoryLabel(selectedCategory).toLowerCase()} listed yet.',
+                    )
                   : LayoutBuilder(
                       builder: (context, constraints) {
-                        final columns = (constraints.maxWidth / 280).floor().clamp(1, 4);
+                        final columns = (constraints.maxWidth / 280)
+                            .floor()
+                            .clamp(1, 4);
                         return GridView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: vehicles.length,
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: columns,
-                            mainAxisSpacing: AppSpacing.sm,
-                            crossAxisSpacing: AppSpacing.sm,
-                            childAspectRatio: 0.72,
-                          ),
-                          itemBuilder: (context, i) => _VehicleCardFromModel(vehicle: vehicles[i]),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: columns,
+                                mainAxisSpacing: AppSpacing.sm,
+                                crossAxisSpacing: AppSpacing.sm,
+                                childAspectRatio: 0.72,
+                              ),
+                          itemBuilder: (context, i) =>
+                              _VehicleCardFromModel(vehicle: vehicles[i]),
                         );
                       },
                     ),
@@ -142,11 +170,15 @@ class HomeScreen extends ConsumerWidget {
                 padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
                 child: Center(child: CircularProgressIndicator()),
               ),
-              error: (e, _) => _EmptyState(message: 'Could not load listings: $e'),
+              error: (e, _) =>
+                  _EmptyState(message: 'Could not load listings: $e'),
             ),
 
             const SizedBox(height: AppSpacing.xl),
-            Text('Trusted Dealers Near You', style: Theme.of(context).textTheme.headlineMedium),
+            Text(
+              'Trusted Dealers Near You',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
             const SizedBox(height: AppSpacing.sm),
             const _DealerSectionPlaceholder(),
             const SizedBox(height: AppSpacing.xl),
@@ -168,18 +200,22 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-/// Bridges the Vehicle model to VehicleCard's individual named parameters.
-/// Falls back to a placeholder image since Sell Vehicle (Sprint 5) --
-/// which is what actually uploads real photos -- doesn't exist yet.
-class _VehicleCardFromModel extends StatelessWidget {
+/// Bridges the Vehicle model to VehicleCard's individual named parameters,
+/// and wires up the favorite toggle. Falls back to a placeholder image
+/// since Sell Vehicle (Sprint 5) -- which is what actually uploads real
+/// photos -- doesn't exist yet.
+class _VehicleCardFromModel extends ConsumerWidget {
   const _VehicleCardFromModel({required this.vehicle});
 
   final Vehicle vehicle;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final favoriteIds = ref.watch(favoriteIdsProvider).value ?? {};
+
     return VehicleCard(
-      imageUrl: vehicle.primaryImageUrl ??
+      imageUrl:
+          vehicle.primaryImageUrl ??
           'https://images.unsplash.com/photo-1552519507-da3b142c6e3d',
       title: vehicle.title,
       price: vehicle.formattedPrice,
@@ -188,6 +224,9 @@ class _VehicleCardFromModel extends StatelessWidget {
       fuel: vehicle.fuelLabel,
       location: vehicle.cityName ?? 'India',
       verified: true,
+      isFavorite: favoriteIds.contains(vehicle.id),
+      onFavoriteToggle: () =>
+          ref.read(favoriteIdsProvider.notifier).toggle(vehicle.id),
       onTap: () {
         // Vehicle detail screen lands in Sprint 4.
       },
@@ -203,13 +242,12 @@ class _SearchBarStub extends StatelessWidget {
       borderRadius: AppRadius.smAll,
       child: InkWell(
         borderRadius: AppRadius.smAll,
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Search arrives in Sprint 3')),
-          );
-        },
+        onTap: () => context.push('/search'),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.md,
+          ),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: AppRadius.smAll,
@@ -219,7 +257,10 @@ class _SearchBarStub extends StatelessWidget {
             children: [
               Icon(Icons.search, color: Theme.of(context).colorScheme.outline),
               const SizedBox(width: AppSpacing.sm),
-              Text('Search cars, bikes, brands...', style: Theme.of(context).textTheme.bodyMedium),
+              Text(
+                'Search cars, bikes, brands...',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
             ],
           ),
         ),
@@ -243,13 +284,20 @@ class _DealerSectionPlaceholder extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.storefront_outlined, color: theme.colorScheme.outline, size: 32),
+          Icon(
+            Icons.storefront_outlined,
+            color: theme.colorScheme.outline,
+            size: 32,
+          ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Dealer storefronts launching soon', style: theme.textTheme.titleLarge),
+                Text(
+                  'Dealer storefronts launching soon',
+                  style: theme.textTheme.titleLarge,
+                ),
                 const SizedBox(height: 4),
                 Text(
                   'Verified dealer profiles and inventory arrive in Module 3.',

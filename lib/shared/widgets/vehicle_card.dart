@@ -25,6 +25,8 @@ class VehicleCard extends StatelessWidget {
     required this.verified,
     this.trustKind = TrustBadgeKind.owner,
     this.onTap,
+    this.isFavorite,
+    this.onFavoriteToggle,
   });
 
   final String imageUrl;
@@ -37,6 +39,11 @@ class VehicleCard extends StatelessWidget {
   final bool verified;
   final TrustBadgeKind trustKind;
   final VoidCallback? onTap;
+
+  /// Null hides the favorite button entirely (e.g. for a guest viewing a
+  /// card before the favorites feature is relevant to them).
+  final bool? isFavorite;
+  final VoidCallback? onFavoriteToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +88,32 @@ class VehicleCard extends StatelessWidget {
                         left: AppSpacing.sm,
                         child: TrustBadge(kind: trustKind, compact: true),
                       ),
+                    if (isFavorite != null)
+                      Positioned(
+                        top: AppSpacing.sm,
+                        right: AppSpacing.sm,
+                        child: Material(
+                          // ignore: deprecated_member_use
+                          color: Colors.black.withOpacity(0.35),
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: onFavoriteToggle,
+                            child: Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: Icon(
+                                isFavorite!
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                size: 18,
+                                color: isFavorite!
+                                    ? AppColors.ember
+                                    : Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     Positioned(
                       left: AppSpacing.sm,
                       bottom: AppSpacing.sm,
@@ -112,8 +145,11 @@ class VehicleCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        Icon(Icons.location_on_outlined,
-                            size: 14, color: theme.colorScheme.outline),
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 14,
+                          color: theme.colorScheme.outline,
+                        ),
                         const SizedBox(width: 2),
                         Expanded(
                           child: Text(
