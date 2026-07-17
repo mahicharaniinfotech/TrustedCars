@@ -24,7 +24,7 @@ class ConversationListScreen extends ConsumerWidget {
                 onRefresh: () async => ref.invalidate(conversationsProvider),
                 child: ListView.separated(
                   itemCount: conversations.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, i) => _ConversationTile(conversation: conversations[i]),
                 ),
               ),

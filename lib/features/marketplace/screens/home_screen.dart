@@ -7,6 +7,7 @@ import '../../../shared/widgets/vehicle_card.dart';
 import '../../../shared/widgets/gradient_action_card.dart';
 import '../../../shared/widgets/quick_service_tile.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../../core/router/require_auth.dart';
 import '../../search/providers/favorites_providers.dart';
 import '../models/vehicle.dart';
 import '../providers/category_filter_provider.dart';
@@ -34,6 +35,18 @@ class HomeScreen extends ConsumerWidget {
           style: Theme.of(context).textTheme.titleLarge,
         ),
         actions: [
+          if (account != null && !account.isVerified)
+            IconButton(
+              tooltip: 'Verify identity',
+              icon: const Icon(Icons.verified_user_outlined),
+              onPressed: () => context.push('/kyc'),
+            ),
+          if (account?.accountType == AccountType.admin)
+            IconButton(
+              tooltip: 'Admin Portal',
+              icon: const Icon(Icons.admin_panel_settings_outlined),
+              onPressed: () => context.push('/admin'),
+            ),
           if (account?.accountType == AccountType.dealer)
             IconButton(
               tooltip: 'Dealer Dashboard',
@@ -43,227 +56,268 @@ class HomeScreen extends ConsumerWidget {
           IconButton(
             tooltip: 'Messages',
             icon: const Icon(Icons.chat_bubble_outline),
-            onPressed: () => context.push('/messages'),
+            onPressed: () {
+              if (requireAuth(
+                    context,
+                    ref,
+                    message: 'Sign in to view your messages',
+                  ) !=
+                  null) {
+                context.push('/messages');
+              }
+            },
           ),
-          IconButton(
-            tooltip: 'Sign out',
-            icon: const Icon(Icons.logout),
-            onPressed: () => ref.read(authRepositoryProvider).signOut(),
-          ),
+          if (account != null)
+            IconButton(
+              tooltip: 'Sign out',
+              icon: const Icon(Icons.logout),
+              onPressed: () => ref.read(authRepositoryProvider).signOut(),
+            )
+          else
+            IconButton(
+              tooltip: 'Sign in',
+              icon: const Icon(Icons.login),
+              onPressed: () => context.push('/phone'),
+            ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/sell'),
+        onPressed: () {
+          if (requireAuth(
+                context,
+                ref,
+                message: 'Sign in to list your vehicle',
+              ) !=
+              null) {
+            context.push('/sell');
+          }
+        },
         icon: const Icon(Icons.add),
         label: const Text('Sell'),
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(featuredVehiclesProvider);
-          ref.invalidate(vehiclesByCategoryProvider);
+      body: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOut,
+        builder: (context, value, child) {
+          return Opacity(
+            opacity: value,
+            child: Transform.translate(
+              offset: Offset(0, (1 - value) * 16),
+              child: child,
+            ),
+          );
         },
-        child: ListView(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          children: [
-            if (account?.fullName != null && account!.fullName!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                child: Text(
-                  'Hi ${account.fullName!.split(' ').first}, find your next vehicle',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-
-            _SearchBarStub(),
-            const SizedBox(height: AppSpacing.lg),
-
-            Row(
-              children: [
-                Expanded(
-                  child: GradientActionCard(
-                    title: 'Buy a Vehicle',
-                    subtitle: 'Browse verified listings',
-                    icon: Icons.directions_car_filled,
-                    gradientColors: AppColors.buyGradient,
-                    onTap: () => context.push('/search'),
+        child: RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(featuredVehiclesProvider);
+            ref.invalidate(vehiclesByCategoryProvider);
+          },
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            children: [
+              if (account?.fullName != null && account!.fullName!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: Text(
+                    'Hi ${account.fullName!.split(' ').first}, find your next vehicle',
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: GradientActionCard(
-                    title: 'Sell your Vehicle',
-                    subtitle: 'List in minutes, free',
-                    icon: Icons.sell,
-                    gradientColors: AppColors.sellGradient,
-                    onTap: () => context.push('/sell'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
 
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                QuickServiceTile(
-                  label: 'Insurance',
-                  icon: Icons.shield_outlined,
-                  gradientColors: AppColors.buyGradient,
-                  comingSoon: true,
-                ),
-                QuickServiceTile(
-                  label: 'Loans',
-                  icon: Icons.account_balance_outlined,
-                  gradientColors: AppColors.sellGradient,
-                  comingSoon: true,
-                ),
-                QuickServiceTile(
-                  label: 'RC Transfer',
-                  icon: Icons.assignment_turned_in_outlined,
-                  gradientColors: AppColors.accentGradient,
-                  comingSoon: true,
-                ),
-                QuickServiceTile(
-                  label: 'Inspection',
-                  icon: Icons.fact_check_outlined,
-                  gradientColors: AppColors.accentGradient,
-                  comingSoon: true,
-                ),
-                QuickServiceTile(
-                  label: 'Favorites',
-                  icon: Icons.favorite_border,
-                  gradientColors: AppColors.sellGradient,
-                  onTap: () => context.push('/search'),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
+              _SearchBarStub(),
+              const SizedBox(height: AppSpacing.lg),
 
-            Text(
-              'Browse by',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
+              Row(
                 children: [
-                  CategoryChip(
-                    label: 'Cars',
-                    icon: Icons.directions_car_outlined,
-                    isSelected: selectedCategory == VehicleCategory.car,
-                    onTap: () => ref
-                        .read(selectedCategoryProvider.notifier)
-                        .select(VehicleCategory.car),
+                  Expanded(
+                    child: GradientActionCard(
+                      title: 'Buy a Vehicle',
+                      subtitle: 'Browse verified listings',
+                      icon: Icons.directions_car_filled,
+                      gradientColors: AppColors.buyGradient,
+                      onTap: () => context.push('/search'),
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
-                  CategoryChip(
-                    label: 'Bikes',
-                    icon: Icons.two_wheeler_outlined,
-                    isSelected: selectedCategory == VehicleCategory.bike,
-                    onTap: () => ref
-                        .read(selectedCategoryProvider.notifier)
-                        .select(VehicleCategory.bike),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  CategoryChip(
-                    label: 'Commercial',
-                    icon: Icons.local_shipping_outlined,
-                    isSelected: selectedCategory == VehicleCategory.commercial,
-                    onTap: () => ref
-                        .read(selectedCategoryProvider.notifier)
-                        .select(VehicleCategory.commercial),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  const CategoryChip(
-                    label: 'Coming Soon',
-                    icon: Icons.hourglass_empty,
-                    isSelected: false,
-                    enabled: false,
+                  Expanded(
+                    child: GradientActionCard(
+                      title: 'Sell your Vehicle',
+                      subtitle: 'List in minutes, free',
+                      icon: Icons.sell,
+                      gradientColors: AppColors.sellGradient,
+                      onTap: () => context.push('/sell'),
+                    ),
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: AppSpacing.lg),
 
-            const SizedBox(height: AppSpacing.xl),
-            Text(
-              'Featured Vehicles',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            SizedBox(
-              height: 300,
-              child: featured.when(
-                data: (vehicles) => vehicles.isEmpty
-                    ? const _EmptyState(message: 'No featured vehicles yet.')
-                    : ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: vehicles.length,
-                        // ignore: unnecessary_underscores
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(width: AppSpacing.sm),
-                        itemBuilder: (context, i) => SizedBox(
-                          width: 260,
-                          child: _VehicleCardFromModel(vehicle: vehicles[i]),
-                        ),
-                      ),
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => _EmptyState(
-                  message: 'Could not load featured vehicles: $e',
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  QuickServiceTile(
+                    label: 'Insurance',
+                    icon: Icons.shield_outlined,
+                    gradientColors: AppColors.buyGradient,
+                    comingSoon: true,
+                  ),
+                  QuickServiceTile(
+                    label: 'Loans',
+                    icon: Icons.account_balance_outlined,
+                    gradientColors: AppColors.sellGradient,
+                    comingSoon: true,
+                  ),
+                  QuickServiceTile(
+                    label: 'RC Transfer',
+                    icon: Icons.assignment_turned_in_outlined,
+                    gradientColors: AppColors.accentGradient,
+                    comingSoon: true,
+                  ),
+                  QuickServiceTile(
+                    label: 'Inspection',
+                    icon: Icons.fact_check_outlined,
+                    gradientColors: AppColors.accentGradient,
+                    comingSoon: true,
+                  ),
+                  QuickServiceTile(
+                    label: 'Favorites',
+                    icon: Icons.favorite_border,
+                    gradientColors: AppColors.sellGradient,
+                    onTap: () => context.push('/search'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.lg),
+
+              Text(
+                'Browse by',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    CategoryChip(
+                      label: 'Cars',
+                      icon: Icons.directions_car_outlined,
+                      isSelected: selectedCategory == VehicleCategory.car,
+                      onTap: () => ref
+                          .read(selectedCategoryProvider.notifier)
+                          .select(VehicleCategory.car),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    CategoryChip(
+                      label: 'Bikes',
+                      icon: Icons.two_wheeler_outlined,
+                      isSelected: selectedCategory == VehicleCategory.bike,
+                      onTap: () => ref
+                          .read(selectedCategoryProvider.notifier)
+                          .select(VehicleCategory.bike),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    CategoryChip(
+                      label: 'Commercial',
+                      icon: Icons.local_shipping_outlined,
+                      isSelected:
+                          selectedCategory == VehicleCategory.commercial,
+                      onTap: () => ref
+                          .read(selectedCategoryProvider.notifier)
+                          .select(VehicleCategory.commercial),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    const CategoryChip(
+                      label: 'Coming Soon',
+                      icon: Icons.hourglass_empty,
+                      isSelected: false,
+                      enabled: false,
+                    ),
+                  ],
                 ),
               ),
-            ),
 
-            const SizedBox(height: AppSpacing.xl),
-            Text(
-              'Recently Listed ${_categoryLabel(selectedCategory)}',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            categoryVehicles.when(
-              data: (vehicles) => vehicles.isEmpty
-                  ? _EmptyState(
-                      message:
-                          'No ${_categoryLabel(selectedCategory).toLowerCase()} listed yet.',
-                    )
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        final columns = (constraints.maxWidth / 280)
-                            .floor()
-                            .clamp(1, 4);
-                        return GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: vehicles.length,
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: columns,
-                                mainAxisSpacing: AppSpacing.sm,
-                                crossAxisSpacing: AppSpacing.sm,
-                                childAspectRatio: 0.72,
-                              ),
-                          itemBuilder: (context, i) =>
-                              _VehicleCardFromModel(vehicle: vehicles[i]),
-                        );
-                      },
-                    ),
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                child: Center(child: CircularProgressIndicator()),
+              const SizedBox(height: AppSpacing.xl),
+              Text(
+                'Featured Vehicles',
+                style: Theme.of(context).textTheme.headlineMedium,
               ),
-              error: (e, _) =>
-                  _EmptyState(message: 'Could not load listings: $e'),
-            ),
+              const SizedBox(height: AppSpacing.sm),
+              SizedBox(
+                height: 300,
+                child: featured.when(
+                  data: (vehicles) => vehicles.isEmpty
+                      ? const _EmptyState(message: 'No featured vehicles yet.')
+                      : ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: vehicles.length,
+                          // ignore: unnecessary_underscores
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: AppSpacing.sm),
+                          itemBuilder: (context, i) => SizedBox(
+                            width: 260,
+                            child: _VehicleCardFromModel(vehicle: vehicles[i]),
+                          ),
+                        ),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => _EmptyState(
+                    message: 'Could not load featured vehicles: $e',
+                  ),
+                ),
+              ),
 
-            const SizedBox(height: AppSpacing.xl),
-            Text(
-              'Trusted Dealers Near You',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            const _DealerSectionPlaceholder(),
-            const SizedBox(height: AppSpacing.xl),
-          ],
+              const SizedBox(height: AppSpacing.xl),
+              Text(
+                'Recently Listed ${_categoryLabel(selectedCategory)}',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              categoryVehicles.when(
+                data: (vehicles) => vehicles.isEmpty
+                    ? _EmptyState(
+                        message:
+                            'No ${_categoryLabel(selectedCategory).toLowerCase()} listed yet.',
+                      )
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final columns = (constraints.maxWidth / 280)
+                              .floor()
+                              .clamp(1, 4);
+                          return GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: vehicles.length,
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: columns,
+                                  mainAxisSpacing: AppSpacing.sm,
+                                  crossAxisSpacing: AppSpacing.sm,
+                                  childAspectRatio: 0.72,
+                                ),
+                            itemBuilder: (context, i) =>
+                                _VehicleCardFromModel(vehicle: vehicles[i]),
+                          );
+                        },
+                      ),
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (e, _) =>
+                    _EmptyState(message: 'Could not load listings: $e'),
+              ),
+
+              const SizedBox(height: AppSpacing.xl),
+              Text(
+                'Trusted Dealers Near You',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              const _DealerSectionPlaceholder(),
+              const SizedBox(height: AppSpacing.xl),
+            ],
+          ),
         ),
       ),
     );
@@ -306,9 +360,13 @@ class _VehicleCardFromModel extends ConsumerWidget {
       location: vehicle.cityName ?? 'India',
       verified: true,
       isFavorite: favoriteIds.contains(vehicle.id),
-      onFavoriteToggle: () =>
-          ref.read(favoriteIdsProvider.notifier).toggle(vehicle.id),
-      onTap: () => context.go('/vehicle/${vehicle.id}'),
+      onFavoriteToggle: () {
+        if (requireAuth(context, ref, message: 'Sign in to save favorites') !=
+            null) {
+          ref.read(favoriteIdsProvider.notifier).toggle(vehicle.id);
+        }
+      },
+      onTap: () => context.push('/vehicle/${vehicle.id}'),
     );
   }
 }

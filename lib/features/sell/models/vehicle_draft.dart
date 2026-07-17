@@ -1,9 +1,14 @@
-import 'package:image_picker/image_picker.dart';
 import '../../marketplace/models/vehicle.dart';
 
 /// Mutable-by-replacement draft state for the multi-step Sell Vehicle flow.
-/// Every step reads/writes this via SellDraftNotifier -- nothing is
-/// persisted to Supabase until the final Publish action on the Preview step.
+///
+/// Steps 0-1 (Details, Price/Location) only edit this in-memory draft —
+/// nothing touches Supabase yet. Once the user reaches the Photos step, a
+/// real `vehicles` row is created with status 'draft' (see
+/// SellRepository.createDraft) and its id is stored here as `vehicleId`.
+/// From that point on, photos are uploaded directly against that row via
+/// the listing capture checklist (ListingCaptureNotifier) — they are no
+/// longer staged as XFiles in this draft (the old `images` field is gone).
 class VehicleDraft {
   const VehicleDraft({
     this.category = VehicleCategory.car,
@@ -20,7 +25,8 @@ class VehicleDraft {
     this.description,
     this.cityId,
     this.cityName,
-    this.images = const [],
+    this.registrationNumber,
+    this.vehicleId,
   });
 
   final VehicleCategory category;
@@ -37,18 +43,35 @@ class VehicleDraft {
   final String? description;
   final int? cityId;
   final String? cityName;
-  final List<XFile> images;
+
+  /// Private — never shown publicly, kept for verification only.
+  final String? registrationNumber;
+
+  /// Set once the draft `vehicles` row exists (on reaching the Photos
+  /// step). Null before that.
+  final int? vehicleId;
 
   bool get isStep1Complete =>
-      brandId != null && modelId != null && year != null && fuelType != null && transmission != null;
+      brandId != null &&
+      modelId != null &&
+      year != null &&
+      fuelType != null &&
+      transmission != null;
 
   bool get isStep2Complete => price != null && price! > 0 && cityId != null;
 
-  bool get isStep3Complete => images.isNotEmpty;
+  /// The draft row exists — actual photo/feature completeness is tracked
+  /// server-side via is_listing_complete() / listingCaptureProvider, not
+  /// here. The Photos step's own Next button gates on that provider state
+  /// directly rather than on this getter.
+  bool get isStep3Complete => vehicleId != null;
 
-  bool get isReadyToPublish => isStep1Complete && isStep2Complete && isStep3Complete;
+  bool get isReadyToPublish =>
+      isStep1Complete && isStep2Complete && isStep3Complete;
 
-  String get title => [brandName, modelName, variant].where((s) => s != null && s.isNotEmpty).join(' ');
+  String get title => [brandName, modelName, variant]
+      .where((s) => s != null && s.isNotEmpty)
+      .join(' ');
 
   VehicleDraft copyWith({
     VehicleCategory? category,
@@ -65,7 +88,8 @@ class VehicleDraft {
     String? description,
     int? cityId,
     String? cityName,
-    List<XFile>? images,
+    String? registrationNumber,
+    int? vehicleId,
   }) {
     return VehicleDraft(
       category: category ?? this.category,
@@ -82,7 +106,8 @@ class VehicleDraft {
       description: description ?? this.description,
       cityId: cityId ?? this.cityId,
       cityName: cityName ?? this.cityName,
-      images: images ?? this.images,
+      registrationNumber: registrationNumber ?? this.registrationNumber,
+      vehicleId: vehicleId ?? this.vehicleId,
     );
   }
 }

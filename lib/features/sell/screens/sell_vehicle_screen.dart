@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_dimensions.dart';
 import '../../../core/theme/kdmc_theme_extension.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../marketplace/models/vehicle.dart';
 import '../../marketplace/providers/marketplace_providers.dart';
+import '../../marketplace/providers/listing_capture_provider.dart';
 import '../../marketplace/widgets/category_chip.dart';
+import '../../marketplace/widgets/listing_capture_body.dart';
 import '../../search/providers/lookup_providers.dart';
 import '../providers/sell_providers.dart';
 import '../models/vehicle_draft.dart';
 
-/// Sprint 5 -- the multi-step Sell Vehicle flow. Nothing touches Supabase
-/// until Publish on the final step; every step before that only edits the
-/// in-memory VehicleDraft held by vehicleDraftProvider.
+/// Sprint 5 -- the multi-step Sell Vehicle flow.
+///
+/// Steps 0-1 (Details, Price) only edit the in-memory VehicleDraft held by
+/// vehicleDraftProvider — nothing touches Supabase yet. On reaching the
+/// Photos step, a real `vehicles` row is created with status 'draft' (see
+/// SellRepository.createDraft) so the structured photo checklist has a real
+/// vehicleId to attach uploads to. Publish (final step) flips that row's
+/// status to 'published', which the DB's completeness trigger (migration
+/// 013) gates on.
 class SellVehicleScreen extends ConsumerWidget {
   const SellVehicleScreen({super.key});
 
@@ -127,7 +134,7 @@ class _StepIndicator extends StatelessWidget {
 }
 
 // ============================================================================
-// STEP 1 -- Vehicle Info
+// STEP 1 -- Vehicle Info (unchanged)
 // ============================================================================
 class _VehicleInfoStep extends ConsumerStatefulWidget {
   const _VehicleInfoStep({super.key});
@@ -347,7 +354,7 @@ class _VehicleInfoStepState extends ConsumerState<_VehicleInfoStep> {
 }
 
 // ============================================================================
-// STEP 2 -- Price & Location
+// STEP 2 -- Price & Location (unchanged)
 // ============================================================================
 class _PriceLocationStep extends ConsumerStatefulWidget {
   const _PriceLocationStep({super.key});
@@ -359,6 +366,7 @@ class _PriceLocationStep extends ConsumerStatefulWidget {
 class _PriceLocationStepState extends ConsumerState<_PriceLocationStep> {
   late final TextEditingController _priceController;
   late final TextEditingController _descriptionController;
+  late final TextEditingController _regNumberController;
 
   @override
   void initState() {
@@ -370,12 +378,16 @@ class _PriceLocationStepState extends ConsumerState<_PriceLocationStep> {
     _descriptionController = TextEditingController(
       text: draft.description ?? '',
     );
+    _regNumberController = TextEditingController(
+      text: draft.registrationNumber ?? '',
+    );
   }
 
   @override
   void dispose() {
     _priceController.dispose();
     _descriptionController.dispose();
+    _regNumberController.dispose();
     super.dispose();
   }
 
@@ -440,6 +452,25 @@ class _PriceLocationStepState extends ConsumerState<_PriceLocationStep> {
                 notifier.update((d) => d.copyWith(description: value)),
           ),
 
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'Registration Number (optional)',
+            style: theme.textTheme.labelLarge,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Never shown publicly -- kept private for verification only.',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          TextFormField(
+            controller: _regNumberController,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(hintText: 'e.g. TS09AB1234'),
+            onChanged: (value) =>
+                notifier.update((d) => d.copyWith(registrationNumber: value)),
+          ),
+
           const SizedBox(height: AppSpacing.lg),
           Row(
             children: [
@@ -468,115 +499,103 @@ class _PriceLocationStepState extends ConsumerState<_PriceLocationStep> {
 }
 
 // ============================================================================
-// STEP 3 -- Photos
+// STEP 3 -- Photos (REPLACED: structured checklist instead of free-form
+// image picker). Creates/syncs the draft `vehicles` row on entry, then
+// embeds the shared ListingCaptureBody. Next is gated on real checklist
+// completeness (listingCaptureProvider), not on local image count.
 // ============================================================================
-class _PhotosStep extends ConsumerWidget {
+class _PhotosStep extends ConsumerStatefulWidget {
   const _PhotosStep({super.key});
 
-  Future<void> _pickImages(WidgetRef ref) async {
-    final picker = ImagePicker();
-    final picked = await picker.pickMultiImage(imageQuality: 80);
-    if (picked.isEmpty) return;
-    final notifier = ref.read(vehicleDraftProvider.notifier);
-    notifier.update((d) => d.copyWith(images: [...d.images, ...picked]));
+  @override
+  ConsumerState<_PhotosStep> createState() => _PhotosStepState();
+}
+
+class _PhotosStepState extends ConsumerState<_PhotosStep> {
+  bool _isPreparing = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _prepareDraftAndLoad();
+  }
+
+  Future<void> _prepareDraftAndLoad() async {
+    setState(() {
+      _isPreparing = true;
+      _error = null;
+    });
+
+    final draft = ref.read(vehicleDraftProvider);
+    final account = ref.read(currentAccountProvider).value;
+    if (account == null) {
+      if (mounted) {
+        setState(() {
+          _error = 'You need to be signed in to list a vehicle.';
+          _isPreparing = false;
+        });
+      }
+      return;
+    }
+
+    final repository = ref.read(sellRepositoryProvider);
+    try {
+      int vehicleId;
+      if (draft.vehicleId == null) {
+        vehicleId = await repository.createDraft(account.id, draft);
+        ref
+            .read(vehicleDraftProvider.notifier)
+            .update((d) => d.copyWith(vehicleId: vehicleId));
+      } else {
+        vehicleId = draft.vehicleId!;
+        // Sync any edits made if the user went Back and changed
+        // Details/Price after the draft row was first created.
+        await repository.updateDraftFields(vehicleId, draft);
+      }
+      await ref.read(listingCaptureProvider.notifier).loadVehicle(vehicleId);
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Could not prepare listing: $e');
+    } finally {
+      if (mounted) setState(() => _isPreparing = false);
+    }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final draft = ref.watch(vehicleDraftProvider);
-    final notifier = ref.read(vehicleDraftProvider.notifier);
+  Widget build(BuildContext context) {
+    if (_isPreparing) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Add Photos', style: theme.textTheme.labelLarge),
-          const SizedBox(height: 4),
-          Text(
-            'The first photo becomes the cover image buyers see first.',
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Expanded(
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                mainAxisSpacing: AppSpacing.sm,
-                crossAxisSpacing: AppSpacing.sm,
-              ),
-              itemCount: draft.images.length + 1,
-              itemBuilder: (context, i) {
-                if (i == draft.images.length) {
-                  return InkWell(
-                    onTap: () => _pickImages(ref),
-                    borderRadius: AppRadius.smAll,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: theme.colorScheme.outline),
-                        borderRadius: AppRadius.smAll,
-                      ),
-                      child: Icon(
-                        Icons.add_a_photo_outlined,
-                        color: theme.colorScheme.outline,
-                      ),
-                    ),
-                  );
-                }
-                final image = draft.images[i];
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ClipRRect(
-                      borderRadius: AppRadius.smAll,
-                      child: Image.network(image.path, fit: BoxFit.cover),
-                    ),
-                    if (i == 0)
-                      Positioned(
-                        left: 4,
-                        top: 4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            // ignore: deprecated_member_use
-                            color: Colors.black.withOpacity(0.6),
-                            borderRadius: AppRadius.smAll,
-                          ),
-                          child: const Text(
-                            'Cover',
-                            style: TextStyle(color: Colors.white, fontSize: 10),
-                          ),
-                        ),
-                      ),
-                    Positioned(
-                      right: 2,
-                      top: 2,
-                      child: InkWell(
-                        onTap: () => notifier.update(
-                          (d) => d.copyWith(images: [...d.images]..removeAt(i)),
-                        ),
-                        child: const CircleAvatar(
-                          radius: 12,
-                          backgroundColor: Colors.black54,
-                          child: Icon(
-                            Icons.close,
-                            size: 14,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
+    if (_error != null) {
+      return Padding(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_error!, textAlign: TextAlign.center),
+            const SizedBox(height: AppSpacing.sm),
+            AppButton.secondary(
+              label: 'Try again',
+              onPressed: _prepareDraftAndLoad,
             ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
+          ],
+        ),
+      );
+    }
+
+    final captureAsync = ref.watch(listingCaptureProvider);
+    final ready = captureAsync.maybeWhen(
+      data: (s) => s.remainingMandatoryCount == 0,
+      orElse: () => false,
+    );
+
+    return Column(
+      children: [
+        const Expanded(child: ListingCaptureBody()),
+        Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Row(
             children: [
               Expanded(
                 child: AppButton.secondary(
@@ -588,15 +607,15 @@ class _PhotosStep extends ConsumerWidget {
               Expanded(
                 child: AppButton.primary(
                   label: 'Next',
-                  onPressed: draft.isStep3Complete
+                  onPressed: ready
                       ? () => ref.read(sellStepProvider.notifier).next()
                       : null,
                 ),
               ),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -616,8 +635,12 @@ class _PreviewStepState extends ConsumerState<_PreviewStep> {
   String? _error;
 
   Future<void> _publish() async {
-    final account = ref.read(currentAccountProvider).value;
-    if (account == null) return;
+    final draft = ref.read(vehicleDraftProvider);
+    final vehicleId = draft.vehicleId;
+    if (vehicleId == null) {
+      setState(() => _error = 'Listing is not ready to publish yet.');
+      return;
+    }
 
     setState(() {
       _isPublishing = true;
@@ -625,10 +648,20 @@ class _PreviewStepState extends ConsumerState<_PreviewStep> {
     });
 
     try {
-      final draft = ref.read(vehicleDraftProvider);
-      final vehicleId = await ref
-          .read(sellRepositoryProvider)
-          .publishVehicle(account.id, draft);
+      // Friendly in-app check before hitting the DB trigger's raw
+      // Postgres exception as the only signal.
+      final completeness =
+          await ref.read(listingCaptureProvider.notifier).checkCompleteness();
+      if (!completeness.complete) {
+        setState(() {
+          _error =
+              '${completeness.missingCount} required photo(s) still missing. '
+              'Go back to the Photos step to finish them.';
+        });
+        return;
+      }
+
+      await ref.read(sellRepositoryProvider).publishDraft(vehicleId);
 
       ref.read(vehicleDraftProvider.notifier).reset();
       ref.read(sellStepProvider.notifier).reset();
@@ -648,6 +681,8 @@ class _PreviewStepState extends ConsumerState<_PreviewStep> {
     final theme = Theme.of(context);
     final tokens = context.kdmcTokens;
     final draft = ref.watch(vehicleDraftProvider);
+    final captureAsync = ref.watch(listingCaptureProvider);
+    final captureState = captureAsync.value;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -656,13 +691,13 @@ class _PreviewStepState extends ConsumerState<_PreviewStep> {
         children: [
           Text('Review your listing', style: theme.textTheme.headlineMedium),
           const SizedBox(height: AppSpacing.md),
-          if (draft.images.isNotEmpty)
+          if (captureState?.coverPhotoUrl != null)
             ClipRRect(
               borderRadius: AppRadius.mdAll,
               child: AspectRatio(
                 aspectRatio: 4 / 3,
                 child: Image.network(
-                  draft.images.first.path,
+                  captureState!.coverPhotoUrl!,
                   fit: BoxFit.cover,
                 ),
               ),
@@ -685,7 +720,8 @@ class _PreviewStepState extends ConsumerState<_PreviewStep> {
               _PreviewChip(label: '${draft.kmDriven ?? 0} km'),
               _PreviewChip(label: draft.fuelType?.name ?? ''),
               _PreviewChip(label: draft.transmission?.name ?? ''),
-              _PreviewChip(label: '${draft.images.length} photos'),
+              _PreviewChip(
+                  label: '${captureState?.totalPhotoCount ?? 0} photos'),
             ],
           ),
           if (draft.description != null && draft.description!.isNotEmpty) ...[

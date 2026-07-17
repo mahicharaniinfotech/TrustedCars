@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_dimensions.dart';
 import '../../../shared/widgets/vehicle_card.dart';
 import '../providers/favorites_providers.dart';
+import '../../../core/router/require_auth.dart';
 import '../widgets/filter_sheet.dart';
 import '../providers/search_providers.dart';
 import '../models/vehicle_filter.dart';
@@ -110,9 +111,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               location: vehicle.cityName ?? 'India',
                               verified: true,
                               isFavorite: favoriteIds.contains(vehicle.id),
-                              onFavoriteToggle: () =>
-                                  ref.read(favoriteIdsProvider.notifier).toggle(vehicle.id),
-                              onTap: () => context.go('/vehicle/${vehicle.id}'),
+                              onFavoriteToggle: () {
+                                if (requireAuth(context, ref, message: 'Sign in to save favorites') != null) {
+                                  ref.read(favoriteIdsProvider.notifier).toggle(vehicle.id);
+                                }
+                              },
+                              onTap: () => context.push('/vehicle/${vehicle.id}'),
                             );
                           },
                         );

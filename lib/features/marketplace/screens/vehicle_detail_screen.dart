@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +10,7 @@ import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/trust_badge.dart';
 import '../../../shared/widgets/vehicle_card.dart';
 import '../../search/providers/favorites_providers.dart';
-import '../../auth/providers/auth_providers.dart';
+import '../../../core/router/require_auth.dart';
 import '../../chat/providers/chat_providers.dart';
 import '../models/vehicle.dart';
 import '../providers/marketplace_providers.dart';
@@ -51,7 +53,8 @@ class _NotFound extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           TextButton(
-            onPressed: () => Navigator.of(context).maybePop(),
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go('/dashboard'),
             child: const Text('Go back'),
           ),
         ],
@@ -79,7 +82,11 @@ class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
     WidgetRef ref,
     Vehicle vehicle,
   ) async {
-    final account = ref.read(currentAccountProvider).value;
+    final account = requireAuth(
+      context,
+      ref,
+      message: 'Sign in to chat with the seller',
+    );
     if (account == null) return;
 
     if (account.id == vehicle.accountId) {
@@ -137,8 +144,16 @@ class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
             _CircleIconButton(
               icon: isFavorite ? Icons.favorite : Icons.favorite_border,
               color: isFavorite ? AppColors.ember : null,
-              onPressed: () =>
-                  ref.read(favoriteIdsProvider.notifier).toggle(vehicle.id),
+              onPressed: () {
+                if (requireAuth(
+                      context,
+                      ref,
+                      message: 'Sign in to save favorites',
+                    ) !=
+                    null) {
+                  ref.read(favoriteIdsProvider.notifier).toggle(vehicle.id);
+                }
+              },
             ),
             const SizedBox(width: AppSpacing.sm),
           ],
@@ -166,8 +181,8 @@ class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
                           width: i == _currentImage ? 18 : 6,
                           height: 6,
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(
-                              alpha: i == _currentImage ? 1 : 0.5,
+                            color: Colors.white.withOpacity(
+                              i == _currentImage ? 1 : 0.5,
                             ),
                             borderRadius: AppRadius.pillAll,
                           ),
@@ -350,7 +365,7 @@ class _SellerCard extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+            backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
             child: Icon(
               vehicle.isDealerListing
                   ? Icons.storefront_outlined
@@ -419,7 +434,8 @@ class _SimilarVehicles extends ConsumerWidget {
             : ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: vehicles.length,
-                separatorBuilder: (_, _) =>
+                // ignore: unnecessary_underscores
+                separatorBuilder: (_, __) =>
                     const SizedBox(width: AppSpacing.sm),
                 itemBuilder: (context, i) {
                   final v = vehicles[i];
@@ -437,9 +453,17 @@ class _SimilarVehicles extends ConsumerWidget {
                       location: v.cityName ?? 'India',
                       verified: true,
                       isFavorite: favoriteIds.contains(v.id),
-                      onFavoriteToggle: () =>
-                          ref.read(favoriteIdsProvider.notifier).toggle(v.id),
-                      onTap: () => context.go('/vehicle/${v.id}'),
+                      onFavoriteToggle: () {
+                        if (requireAuth(
+                              context,
+                              ref,
+                              message: 'Sign in to save favorites',
+                            ) !=
+                            null) {
+                          ref.read(favoriteIdsProvider.notifier).toggle(v.id);
+                        }
+                      },
+                      onTap: () => context.push('/vehicle/${v.id}'),
                     ),
                   );
                 },
@@ -463,11 +487,19 @@ class _CircleIconButton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(6),
       child: Material(
-        color: Colors.black.withValues(alpha: 0.35),
+        color: Colors.black.withOpacity(0.35),
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
-          onTap: onPressed ?? () => Navigator.of(context).maybePop(),
+          onTap:
+              onPressed ??
+              () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/dashboard');
+                }
+              },
           child: Padding(
             padding: const EdgeInsets.all(8),
             child: Icon(icon, size: 20, color: color ?? Colors.white),

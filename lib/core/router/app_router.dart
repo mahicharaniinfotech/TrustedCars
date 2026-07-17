@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_underscores
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,32 +14,62 @@ import '../../features/sell/screens/sell_vehicle_screen.dart';
 import '../../features/chat/screens/conversation_list_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/dealer/dealer_dashboard_screen.dart';
+import '../../features/admin/admin_dashboard_screen.dart';
+import '../../features/kyc/kyc_status_screen.dart';
+import '../../features/auth/models/account.dart';
+import '../../features/splash/splash_screen.dart';
+import '../../features/splash/splash_providers.dart';
+import 'page_transitions.dart';
 
-/// Single source of truth for navigation. Redirect logic below is what
-/// keeps a logged-out user out of the dashboard, sends a freshly-verified
-/// user to finish their profile, and keeps a fully set-up user out of the
-/// auth screens.
+/// Single source of truth for navigation.
+///
+/// IMPORTANT: this provider builds the GoRouter instance exactly ONCE.
+/// It deliberately does NOT `ref.watch(...)` auth state at the top level --
+/// doing so would make Riverpod rebuild (recreate) the entire GoRouter
+/// object every time login state changes, which resets navigation back to
+/// `initialLocation` for a frame before redirect logic corrects it.
+///
+/// Instead: `redirect` reads live state via `ref.read()` each time it
+/// runs, and `refreshListenable` (_AuthRefreshNotifier below) is what
+/// tells GoRouter *when* to re-run redirect -- without ever touching the
+/// router object itself.
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateChangesProvider);
-  final accountAsync = ref.watch(currentAccountProvider);
-
   return GoRouter(
-    initialLocation: '/phone',
+    initialLocation: '/splash',
     debugLogDiagnostics: true,
     refreshListenable: _AuthRefreshNotifier(ref),
     redirect: (context, state) {
-      // Firebase's authStateChanges emits User? directly -- no .session wrapper.
-      final isLoggedIn = authState.value != null;
       final loc = state.matchedLocation;
+
+      // Hold on the animated splash until its entrance animation finishes.
+      final splashDone = ref.read(splashCompleteProvider);
+      if (!splashDone) {
+        return loc == '/splash' ? null : '/splash';
+      }
+      // Splash hands off to Home, not the phone screen -- guests land
+      // straight on the marketplace, matching the "browse first, log in
+      // only when you need to" design.
+      if (loc == '/splash') return '/dashboard';
+
+      final authState = ref.read(authStateChangesProvider);
+      final isLoggedIn = authState.value != null;
       final isPreAuthRoute = loc == '/phone' || loc == '/otp';
 
+      // Guest-accessible routes: browsing needs no login at all. Everything
+      // else (selling, chat, dashboards) still requires an account.
+      final isPublicRoute =
+          loc == '/dashboard' ||
+          loc == '/search' ||
+          loc.startsWith('/vehicle/');
+
       if (!isLoggedIn) {
-        return isPreAuthRoute ? null : '/phone';
+        if (isPublicRoute || isPreAuthRoute) return null;
+        return '/phone';
       }
 
       // Logged in from here on. Wait for the account row to load before
       // deciding whether onboarding is complete, to avoid a false bounce.
-      final account = accountAsync.value;
+      final account = ref.read(currentAccountProvider).value;
       if (account == null) return null;
 
       final profileIncomplete = !account.isProfileComplete;
@@ -46,47 +78,135 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (isPreAuthRoute || loc == '/complete-profile') return '/dashboard';
+
+      // Admin portal is gated by account_type, not just login state.
+      if (loc == '/admin' && account.accountType != AccountType.admin) {
+        return '/dashboard';
+      }
+
       return null;
     },
     routes: [
-      GoRoute(path: '/phone', builder: (context, state) => const PhoneEntryScreen()),
+      GoRoute(
+        path: '/splash',
+        pageBuilder: (context, state) => fadeTransitionPage(
+          context: context,
+          state: state,
+          child: const SplashScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/phone',
+        pageBuilder: (context, state) => fadeTransitionPage(
+          context: context,
+          state: state,
+          child: const PhoneEntryScreen(),
+        ),
+      ),
       GoRoute(
         path: '/otp',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final args = state.extra as Map<String, String>;
-          return OtpVerificationScreen(
-            phone: args['phone']!,
-            verificationId: args['verificationId']!,
+          return fadeTransitionPage(
+            context: context,
+            state: state,
+            child: OtpVerificationScreen(
+              phone: args['phone']!,
+              verificationId: args['verificationId']!,
+            ),
           );
         },
       ),
       GoRoute(
         path: '/complete-profile',
-        builder: (context, state) => const CompleteProfileScreen(),
+        pageBuilder: (context, state) => fadeTransitionPage(
+          context: context,
+          state: state,
+          child: const CompleteProfileScreen(),
+        ),
       ),
-      GoRoute(path: '/dashboard', builder: (context, state) => const HomeScreen()),
-      GoRoute(path: '/search', builder: (context, state) => const SearchScreen()),
-      GoRoute(path: '/sell', builder: (context, state) => const SellVehicleScreen()),
-      GoRoute(path: '/messages', builder: (context, state) => const ConversationListScreen()),
-      GoRoute(path: '/dealer', builder: (context, state) => const DealerDashboardScreen()),
       GoRoute(
-        path: '/chat/:id',
-        builder: (context, state) {
+        path: '/dashboard',
+        pageBuilder: (context, state) => fadeTransitionPage(
+          context: context,
+          state: state,
+          child: const HomeScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/search',
+        pageBuilder: (context, state) => fadeTransitionPage(
+          context: context,
+          state: state,
+          child: const SearchScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/vehicle/:id',
+        pageBuilder: (context, state) {
           final id = int.parse(state.pathParameters['id']!);
-          final extra = state.extra as Map<String, String?>?;
-          return ChatScreen(
-            conversationId: id,
-            otherPartyName: extra?['otherPartyName'],
-            vehicleTitle: extra?['vehicleTitle'],
+          return fadeTransitionPage(
+            context: context,
+            state: state,
+            child: VehicleDetailScreen(vehicleId: id),
           );
         },
       ),
       GoRoute(
-        path: '/vehicle/:id',
-        builder: (context, state) {
+        path: '/sell',
+        pageBuilder: (context, state) => fadeTransitionPage(
+          context: context,
+          state: state,
+          child: const SellVehicleScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/messages',
+        pageBuilder: (context, state) => fadeTransitionPage(
+          context: context,
+          state: state,
+          child: const ConversationListScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/chat/:id',
+        pageBuilder: (context, state) {
           final id = int.parse(state.pathParameters['id']!);
-          return VehicleDetailScreen(vehicleId: id);
+          final extra = state.extra as Map<String, String?>?;
+          return fadeTransitionPage(
+            context: context,
+            state: state,
+            child: ChatScreen(
+              conversationId: id,
+              otherPartyName: extra?['otherPartyName'],
+              vehicleTitle: extra?['vehicleTitle'],
+            ),
+          );
         },
+      ),
+      GoRoute(
+        path: '/dealer',
+        pageBuilder: (context, state) => fadeTransitionPage(
+          context: context,
+          state: state,
+          child: const DealerDashboardScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/admin',
+        pageBuilder: (context, state) => fadeTransitionPage(
+          context: context,
+          state: state,
+          child: const AdminDashboardScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/kyc',
+        pageBuilder: (context, state) => fadeTransitionPage(
+          context: context,
+          state: state,
+          child: const KycStatusScreen(),
+        ),
       ),
     ],
   );
@@ -94,9 +214,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
 /// Bridges Riverpod's stream/future-based state into GoRouter's
 /// Listenable-based refresh mechanism, so `redirect` re-evaluates the
-/// instant login, logout, or account data changes.
+/// instant splash completes, login, logout, or account data changes --
+/// without recreating the GoRouter object itself.
 class _AuthRefreshNotifier extends ChangeNotifier {
   _AuthRefreshNotifier(this.ref) {
+    ref.listen(splashCompleteProvider, (_, __) => notifyListeners());
     ref.listen(authStateChangesProvider, (_, __) => notifyListeners());
     ref.listen(currentAccountProvider, (_, __) => notifyListeners());
   }
