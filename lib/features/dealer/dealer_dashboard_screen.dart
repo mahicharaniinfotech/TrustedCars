@@ -6,25 +6,34 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_dimensions.dart';
 import '../../../core/theme/kdmc_theme_extension.dart';
 import '../../../shared/widgets/app_button.dart';
+import '../auth/providers/auth_providers.dart';
 import '../chat/providers/chat_providers.dart';
 import '../marketplace/models/vehicle.dart';
 import 'dealer_profile.dart';
 import 'dealer_providers.dart';
 import 'dealer_profile_setup_screen.dart';
 
-/// The Dealer Dashboard -- Sprint 7. Gated by whether a dealer_profiles
-/// row exists yet; if not, shows the one-time setup screen instead.
+/// The Dealer Dashboard -- Sprint 7. Gated by two things: a dealer_profiles
+/// row existing (business details submitted at all), AND the account
+/// being verified (admin has approved those business details via the
+/// existing Admin Portal review). Either gap shows the setup/status
+/// screen instead -- it internally branches on pending/rejected/no
+/// submission yet.
 class DealerDashboardScreen extends ConsumerWidget {
   const DealerDashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(dealerProfileProvider);
+    final account = ref.watch(currentAccountProvider).value;
 
     return profileAsync.when(
-      data: (profile) => profile == null
-          ? const DealerProfileSetupScreen()
-          : _DealerDashboardContent(profile: profile),
+      data: (profile) {
+        final needsSetupOrReview = profile == null || !(account?.isVerified ?? false);
+        return needsSetupOrReview
+            ? const DealerProfileSetupScreen()
+            : _DealerDashboardContent(profile: profile);
+      },
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (e, _) => Scaffold(

@@ -20,6 +20,8 @@ import '../../features/auth/models/account.dart';
 import '../../features/splash/splash_screen.dart';
 import '../../features/splash/splash_providers.dart';
 import 'page_transitions.dart';
+import '../../features/sell/screens/sell_landing_screen.dart';
+import '../../features/auth/screens/account_screen.dart';
 
 /// Single source of truth for navigation.
 ///
@@ -96,6 +98,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: '/account',
+        builder: (context, state) => const AccountScreen(),
+      ),
+      GoRoute(
         path: '/phone',
         pageBuilder: (context, state) => fadeTransitionPage(
           context: context,
@@ -154,11 +160,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/sell',
-        pageBuilder: (context, state) => fadeTransitionPage(
-          context: context,
-          state: state,
-          child: const SellVehicleScreen(),
-        ),
+        builder: (context, state) => const SellLandingScreen(),
+      ),
+      GoRoute(
+        path: '/sell/details',
+        builder: (context, state) => const SellVehicleScreen(),
       ),
       GoRoute(
         path: '/messages',

@@ -19,35 +19,46 @@ class VehicleRepository {
     vehicle_images ( image_url, is_primary, sort_order )
   ''';
 
-  Future<List<Vehicle>> getFeaturedVehicles({int limit = 10}) async {
-    final rows = await supabase
+  /// [cityId] filters to that city when provided -- used by the home feed
+  /// once a user's location has been resolved. Null = no filter (all
+  /// cities), which is also the behavior when location hasn't resolved
+  /// yet or the user has no city set.
+  Future<List<Vehicle>> getFeaturedVehicles({int? cityId, int limit = 10}) async {
+    var query = supabase
         .from('vehicles')
         .select(_selectWithJoins)
         .eq('status', 'published')
-        .eq('is_featured', true)
-        .order('created_at', ascending: false)
-        .limit(limit);
+        .eq('is_featured', true);
+    if (cityId != null) query = query.eq('city_id', cityId);
+
+    final rows = await query.order('created_at', ascending: false).limit(limit);
     return (rows as List).map((r) => Vehicle.fromMap(r as Map<String, dynamic>)).toList();
   }
 
-  Future<List<Vehicle>> getRecentVehicles({int limit = 20}) async {
-    final rows = await supabase
+  Future<List<Vehicle>> getRecentVehicles({int? cityId, int limit = 20}) async {
+    var query = supabase
         .from('vehicles')
         .select(_selectWithJoins)
-        .eq('status', 'published')
-        .order('created_at', ascending: false)
-        .limit(limit);
+        .eq('status', 'published');
+    if (cityId != null) query = query.eq('city_id', cityId);
+
+    final rows = await query.order('created_at', ascending: false).limit(limit);
     return (rows as List).map((r) => Vehicle.fromMap(r as Map<String, dynamic>)).toList();
   }
 
-  Future<List<Vehicle>> getVehiclesByCategory(VehicleCategory category, {int limit = 20}) async {
-    final rows = await supabase
+  Future<List<Vehicle>> getVehiclesByCategory(
+    VehicleCategory category, {
+    int? cityId,
+    int limit = 20,
+  }) async {
+    var query = supabase
         .from('vehicles')
         .select(_selectWithJoins)
         .eq('status', 'published')
-        .eq('category', category.name)
-        .order('created_at', ascending: false)
-        .limit(limit);
+        .eq('category', category.name);
+    if (cityId != null) query = query.eq('city_id', cityId);
+
+    final rows = await query.order('created_at', ascending: false).limit(limit);
     return (rows as List).map((r) => Vehicle.fromMap(r as Map<String, dynamic>)).toList();
   }
 

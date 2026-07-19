@@ -15,19 +15,28 @@ class DealerRepository {
   /// Called from the one-time Dealer Profile Setup screen. Creates the
   /// dealer_profiles row if it doesn't exist yet (nothing does this
   /// automatically -- unlike accounts, there's no trigger for it, since
-  /// not every account is a dealer).
+  /// not every account is a dealer). Also sets the account's
+  /// verification_status to 'pending' -- the Admin Portal's existing
+  /// account verification review (already generic across individuals and
+  /// dealers) is what moves it to 'verified' or 'rejected' from there.
   Future<void> upsertDealerProfile(
     String accountId, {
     required String businessName,
-    String? gstNumber,
+    required String gstNumber,
+    required String panNumber,
     String? businessAddress,
   }) async {
     await supabase.from('dealer_profiles').upsert({
       'account_id': accountId,
       'business_name': businessName,
       'gst_number': gstNumber,
+      'pan_number': panNumber,
       'business_address': businessAddress,
     });
+    await supabase
+        .from('accounts')
+        .update({'verification_status': 'pending'})
+        .eq('id', accountId);
   }
 
   /// Every vehicle this dealer owns, regardless of status -- unlike the

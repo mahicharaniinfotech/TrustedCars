@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_dimensions.dart';
 
-/// Labeled input used across auth screens. Visual styling itself comes
-/// from InputDecorationTheme in app_theme.dart — this widget just adds
-/// the label-above-field layout so every form doesn't repeat it.
 class AuthTextField extends StatelessWidget {
   const AuthTextField({
     super.key,
@@ -15,6 +12,7 @@ class AuthTextField extends StatelessWidget {
     this.autofillHints,
     this.prefixText,
     this.maxLength,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   final String label;
@@ -25,6 +23,7 @@ class AuthTextField extends StatelessWidget {
   final Iterable<String>? autofillHints;
   final String? prefixText;
   final int? maxLength;
+  final TextCapitalization textCapitalization;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +39,7 @@ class AuthTextField extends StatelessWidget {
           validator: validator,
           autofillHints: autofillHints,
           maxLength: maxLength,
+          textCapitalization: textCapitalization,
           decoration: InputDecoration(
             prefixText: prefixText,
             counterText: '',

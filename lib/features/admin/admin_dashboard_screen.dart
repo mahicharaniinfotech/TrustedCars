@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_dimensions.dart';
 import '../auth/models/account.dart';
+import '../dealer/dealer_providers.dart';
 import '../marketplace/models/vehicle.dart';
 import 'admin_providers.dart';
 
@@ -115,6 +116,7 @@ class _VerificationTile extends ConsumerWidget {
                   '${account.accountType.name} · ${account.verificationStatus.name} · ${account.phone ?? "no phone"}',
                   style: theme.textTheme.bodySmall,
                 ),
+                if (account.isDealer) _DealerBusinessDetails(accountId: account.id),
               ],
             ),
           ),
@@ -153,6 +155,47 @@ class _VerificationTile extends ConsumerWidget {
 // ============================================================================
 // LISTINGS (MODERATION)
 // ============================================================================
+class _DealerBusinessDetails extends ConsumerWidget {
+  const _DealerBusinessDetails({required this.accountId});
+
+  final String accountId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final profileAsync = ref.watch(dealerProfileForAccountProvider(accountId));
+
+    return profileAsync.when(
+      data: (profile) {
+        if (profile == null) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              'No business details submitted yet',
+              style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
+            ),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Business: ${profile.businessName}', style: theme.textTheme.bodySmall),
+              if (profile.gstNumber != null)
+                Text('GST: ${profile.gstNumber}', style: theme.textTheme.bodySmall),
+              if (profile.panNumber != null)
+                Text('PAN: ${profile.panNumber}', style: theme.textTheme.bodySmall),
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (e, _) => const SizedBox.shrink(),
+    );
+  }
+}
+
 class _ListingsTab extends ConsumerWidget {
   const _ListingsTab();
 

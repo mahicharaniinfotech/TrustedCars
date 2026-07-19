@@ -9,6 +9,8 @@ import '../../../shared/widgets/quick_service_tile.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../../core/router/require_auth.dart';
 import '../../search/providers/favorites_providers.dart';
+import '../../search/providers/lookup_providers.dart';
+import '../../location/providers/location_providers.dart';
 import '../models/vehicle.dart';
 import '../providers/category_filter_provider.dart';
 import '../providers/marketplace_providers.dart';
@@ -16,23 +18,148 @@ import '../widgets/category_chip.dart';
 
 /// The real home screen -- Sprint 2. Replaces the placeholder dashboard
 /// that only existed to prove auth worked end-to-end.
-class HomeScreen extends ConsumerWidget {
+///
+/// Now a ConsumerStatefulWidget (was ConsumerWidget) so it can trigger
+/// device-location resolution exactly once on first load via initState --
+/// see resolveFromDeviceLocation() in location_providers.dart. This is
+/// silent and non-blocking: if permission is denied or resolution fails,
+/// the feed just stays unfiltered (all cities) until the user picks one
+/// manually via the city chip under the AppBar.
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    ref.read(selectedCityIdProvider.notifier).resolveFromDeviceLocation();
+  }
+
+  Future<void> _showCityPicker() async {
+    final citiesAsync = ref.read(citiesProvider);
+    final cities = citiesAsync.value;
+    if (cities == null) return;
+
+    final searchController = TextEditingController();
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            final query = searchController.text.trim().toLowerCase();
+            final filtered = query.isEmpty
+                ? cities
+                : cities.where((c) => c.name.toLowerCase().contains(query)).toList();
+
+            return SizedBox(
+              height: MediaQuery.of(sheetContext).size.height * 0.7,
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Select your city',
+                        style: Theme.of(sheetContext).textTheme.headlineSmall),
+                    const SizedBox(height: AppSpacing.sm),
+                    TextField(
+                      controller: searchController,
+                      decoration: const InputDecoration(
+                        hintText: 'Search your city...',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      onChanged: (_) => setSheetState(() {}),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    TextButton(
+                      onPressed: () {
+                        ref.read(selectedCityIdProvider.notifier).setCity(null);
+                        Navigator.of(sheetContext).pop();
+                      },
+                      child: const Text('Show all India'),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: filtered.length,
+                        itemBuilder: (context, i) {
+                          final city = filtered[i];
+                          return ListTile(
+                            title: Text(city.name),
+                            onTap: () {
+                              ref
+                                  .read(selectedCityIdProvider.notifier)
+                                  .setCity(city.id);
+                              Navigator.of(sheetContext).pop();
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final account = ref.watch(currentAccountProvider).value;
     final selectedCategory = ref.watch(selectedCategoryProvider);
     final featured = ref.watch(featuredVehiclesProvider);
     final categoryVehicles = ref.watch(
       vehiclesByCategoryProvider(selectedCategory),
     );
+    final cityNameAsync = ref.watch(selectedCityNameProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
           'TrustedCars',
           style: Theme.of(context).textTheme.titleLarge,
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(40),
+          child: Padding(
+            padding: const EdgeInsets.only(
+              left: AppSpacing.md,
+              right: AppSpacing.md,
+              bottom: AppSpacing.sm,
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: InkWell(
+                borderRadius: AppRadius.pillAll,
+                onTap: _showCityPicker,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: 4,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.location_on_outlined, size: 16),
+                      const SizedBox(width: 4),
+                      Text(
+                        cityNameAsync.value ?? 'Detecting location...',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const Icon(Icons.arrow_drop_down, size: 18),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
         actions: [
           if (account != null && !account.isVerified)
@@ -69,9 +196,9 @@ class HomeScreen extends ConsumerWidget {
           ),
           if (account != null)
             IconButton(
-              tooltip: 'Sign out',
-              icon: const Icon(Icons.logout),
-              onPressed: () => ref.read(authRepositoryProvider).signOut(),
+              tooltip: 'Account',
+              icon: const Icon(Icons.account_circle_outlined),
+              onPressed: () => context.push('/account'),
             )
           else
             IconButton(

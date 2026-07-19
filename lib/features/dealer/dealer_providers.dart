@@ -12,6 +12,14 @@ final dealerProfileProvider = FutureProvider<DealerProfile?>((ref) async {
   return ref.watch(dealerRepositoryProvider).getDealerProfile(account.id);
 });
 
+/// Same lookup, but for an arbitrary account id -- used by the Admin
+/// Portal's verification review, which needs to see a dealer's business
+/// details (not just their own) before approving/rejecting them.
+final dealerProfileForAccountProvider =
+    FutureProvider.family<DealerProfile?, String>((ref, accountId) {
+  return ref.watch(dealerRepositoryProvider).getDealerProfile(accountId);
+});
+
 final dealerInventoryProvider = FutureProvider<List<Vehicle>>((ref) async {
   final account = await ref.watch(currentAccountProvider.future);
   if (account == null) return [];

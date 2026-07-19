@@ -3,6 +3,7 @@ class DealerProfile {
     required this.accountId,
     required this.businessName,
     this.gstNumber,
+    this.panNumber,
     this.businessAddress,
     this.yearsInBusiness,
     this.rating = 0.0,
@@ -14,6 +15,7 @@ class DealerProfile {
   final String accountId;
   final String businessName;
   final String? gstNumber;
+  final String? panNumber;
   final String? businessAddress;
   final int? yearsInBusiness;
   final double rating;
@@ -26,6 +28,7 @@ class DealerProfile {
       accountId: map['account_id'] as String,
       businessName: map['business_name'] as String,
       gstNumber: map['gst_number'] as String?,
+      panNumber: map['pan_number'] as String?,
       businessAddress: map['business_address'] as String?,
       yearsInBusiness: map['years_in_business'] as int?,
       rating: (map['rating'] as num?)?.toDouble() ?? 0.0,

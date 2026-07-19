@@ -14,6 +14,8 @@ import '../../../core/router/require_auth.dart';
 import '../../chat/providers/chat_providers.dart';
 import '../models/vehicle.dart';
 import '../providers/marketplace_providers.dart';
+import '../providers/vehicle_gallery_provider.dart';
+import '../widgets/vehicle_gallery_viewer.dart';
 
 class VehicleDetailScreen extends ConsumerWidget {
   const VehicleDetailScreen({super.key, required this.vehicleId});
@@ -74,9 +76,6 @@ class _VehicleDetailContent extends ConsumerStatefulWidget {
 }
 
 class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
-  final _pageController = PageController();
-  int _currentImage = 0;
-
   Future<void> _startChat(
     BuildContext context,
     WidgetRef ref,
@@ -118,27 +117,18 @@ class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
   }
 
   @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = context.kdmcTokens;
     final vehicle = widget.vehicle;
     final favoriteIds = ref.watch(favoriteIdsProvider).value ?? {};
     final isFavorite = favoriteIds.contains(vehicle.id);
-    final images = vehicle.imageUrls.isNotEmpty
-        ? vehicle.imageUrls
-        : ['https://images.unsplash.com/photo-1552519507-da3b142c6e3d'];
+    final galleryAsync = ref.watch(vehicleGalleryProvider(vehicle.id));
 
     return CustomScrollView(
       slivers: [
         SliverAppBar(
           pinned: true,
-          expandedHeight: 300,
           leading: const _CircleIconButton(icon: Icons.arrow_back),
           actions: [
             _CircleIconButton(
@@ -157,41 +147,19 @@ class _VehicleDetailContentState extends ConsumerState<_VehicleDetailContent> {
             ),
             const SizedBox(width: AppSpacing.sm),
           ],
-          flexibleSpace: FlexibleSpaceBar(
-            background: Stack(
-              fit: StackFit.expand,
-              children: [
-                PageView.builder(
-                  controller: _pageController,
-                  itemCount: images.length,
-                  onPageChanged: (i) => setState(() => _currentImage = i),
-                  itemBuilder: (context, i) =>
-                      Image.network(images[i], fit: BoxFit.cover),
-                ),
-                if (images.length > 1)
-                  Positioned(
-                    bottom: AppSpacing.md,
-                    left: 0,
-                    right: 0,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(images.length, (i) {
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 3),
-                          width: i == _currentImage ? 18 : 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(
-                              i == _currentImage ? 1 : 0.5,
-                            ),
-                            borderRadius: AppRadius.pillAll,
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-              ],
+        ),
+        SliverToBoxAdapter(
+          child: galleryAsync.when(
+            data: (photos) => photos.isNotEmpty
+                ? VehicleGalleryViewer(photos: photos)
+                : _LegacyImageFallback(vehicle: vehicle),
+            loading: () => const AspectRatio(
+              aspectRatio: 4 / 3,
+              child: Center(child: CircularProgressIndicator()),
             ),
+            // If the structured gallery query fails for any reason, still
+            // show something rather than an empty screen.
+            error: (e, _) => _LegacyImageFallback(vehicle: vehicle),
           ),
         ),
         SliverToBoxAdapter(
@@ -470,6 +438,75 @@ class _SimilarVehicles extends ConsumerWidget {
               ),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => const SizedBox.shrink(),
+      ),
+    );
+  }
+}
+
+/// Fallback for vehicles with no structured vehicle_images rows yet (e.g.
+/// listed before the photo checklist existed, or the gallery query failed).
+/// Simple paged image view with dot indicators — no category tabs, since
+/// there's no category data to show.
+class _LegacyImageFallback extends StatefulWidget {
+  const _LegacyImageFallback({required this.vehicle});
+
+  final Vehicle vehicle;
+
+  @override
+  State<_LegacyImageFallback> createState() => _LegacyImageFallbackState();
+}
+
+class _LegacyImageFallbackState extends State<_LegacyImageFallback> {
+  final _pageController = PageController();
+  int _currentImage = 0;
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final images = widget.vehicle.imageUrls.isNotEmpty
+        ? widget.vehicle.imageUrls
+        : ['https://images.unsplash.com/photo-1552519507-da3b142c6e3d'];
+
+    return AspectRatio(
+      aspectRatio: 4 / 3,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            itemCount: images.length,
+            onPageChanged: (i) => setState(() => _currentImage = i),
+            itemBuilder: (context, i) =>
+                Image.network(images[i], fit: BoxFit.cover),
+          ),
+          if (images.length > 1)
+            Positioned(
+              bottom: AppSpacing.md,
+              left: 0,
+              right: 0,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(images.length, (i) {
+                  return Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: i == _currentImage ? 18 : 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(
+                        i == _currentImage ? 1 : 0.5,
+                      ),
+                      borderRadius: AppRadius.pillAll,
+                    ),
+                  );
+                }),
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -134,7 +134,13 @@ class _StepIndicator extends StatelessWidget {
 }
 
 // ============================================================================
-// STEP 1 -- Vehicle Info (unchanged)
+// STEP 1 -- Vehicle Details (REDESIGNED: one question per screen, matching
+// the reference flow. Breadcrumb chips accumulate at the top; each answer
+// auto-advances to the next question except the combined Fuel/Transmission
+// screen, which needs a Continue button since it takes two selections.
+// Order: Brand -> Model -> Year -> Fuel/Transmission/Variant -> Ownership
+// -> KM range -> City. City is asked here (not in Step 2) so Step 2 is
+// just price/description/registration number.
 // ============================================================================
 class _VehicleInfoStep extends ConsumerStatefulWidget {
   const _VehicleInfoStep({super.key});
@@ -144,159 +150,513 @@ class _VehicleInfoStep extends ConsumerStatefulWidget {
 }
 
 class _VehicleInfoStepState extends ConsumerState<_VehicleInfoStep> {
-  late final TextEditingController _variantController;
-  late final TextEditingController _kmController;
+  late int _question;
+  static const _questionCount = 7;
+
+  final _searchController = TextEditingController();
+  final _variantController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    // If a brand was already picked on the landing page, skip straight to
+    // the Model question instead of re-asking Brand.
     final draft = ref.read(vehicleDraftProvider);
-    _variantController = TextEditingController(text: draft.variant ?? '');
-    _kmController = TextEditingController(
-      text: draft.kmDriven?.toString() ?? '',
-    );
+    _question = draft.brandId != null ? 1 : 0;
   }
 
   @override
   void dispose() {
+    _searchController.dispose();
     _variantController.dispose();
-    _kmController.dispose();
     super.dispose();
+  }
+
+  void _goBack() {
+    if (_question == 0) return;
+    setState(() {
+      _question -= 1;
+      _searchController.clear();
+    });
+  }
+
+  void _advance() {
+    _searchController.clear();
+    if (_question < _questionCount - 1) {
+      setState(() => _question += 1);
+    } else {
+      ref.read(sellStepProvider.notifier).next();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final draft = ref.watch(vehicleDraftProvider);
-    final notifier = ref.read(vehicleDraftProvider.notifier);
-    final brandsAsync = ref.watch(brandsForCategoryProvider(draft.category));
-    final currentYear = DateTime.now().year;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('What are you listing?', style: theme.textTheme.labelLarge),
-          const SizedBox(height: AppSpacing.xs),
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildChipsHeader(theme, draft),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    if (_question > 0)
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: _goBack,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    const Spacer(),
+                    Text(
+                      '${_question + 1}/$_questionCount',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Expanded(child: _buildQuestion(theme, draft)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChipsHeader(ThemeData theme, VehicleDraft draft) {
+    final chips = <String>[
+      if (draft.brandName != null) draft.brandName!,
+      if (draft.modelName != null) draft.modelName!,
+      if (draft.year != null) '${draft.year}',
+      if (draft.fuelType != null)
+        draft.fuelType!.name[0].toUpperCase() + draft.fuelType!.name.substring(1),
+      if (draft.ownerNumber != null)
+        OwnershipOption.all
+            .firstWhere((o) => o.ownerNumber == draft.ownerNumber)
+            .label,
+      if (draft.kmDriven != null)
+        KmRangeBucket.all
+            .firstWhere((b) => b.representativeKm == draft.kmDriven,
+                orElse: () => KmRangeBucket.all.last)
+            .label,
+      if (draft.cityName != null) draft.cityName!,
+    ];
+    if (chips.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      color: theme.colorScheme.surfaceContainerHighest,
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
+      child: Wrap(
+        spacing: AppSpacing.xs,
+        runSpacing: AppSpacing.xs,
+        children: chips
+            .map((c) => Chip(
+                  label: Text(c, style: theme.textTheme.bodySmall),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ))
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _buildQuestion(ThemeData theme, VehicleDraft draft) {
+    switch (_question) {
+      case 0:
+        return _BrandQuestion(
+          searchController: _searchController,
+          category: draft.category,
+          onCategoryChanged: (category) {
+            ref.read(vehicleDraftProvider.notifier).update(
+                  (d) => VehicleDraft(category: category),
+                );
+          },
+          onSelected: (id, name) {
+            ref.read(vehicleDraftProvider.notifier).update(
+                  (d) => VehicleDraft(
+                    category: d.category,
+                    brandId: id,
+                    brandName: name,
+                  ),
+                );
+            _advance();
+          },
+        );
+      case 1:
+        return _ModelQuestion(
+          searchController: _searchController,
+          brandId: draft.brandId!,
+          onSelected: (id, name) {
+            ref
+                .read(vehicleDraftProvider.notifier)
+                .update((d) => d.copyWith(modelId: id, modelName: name));
+            _advance();
+          },
+        );
+      case 2:
+        return _YearQuestion(
+          onSelected: (year) {
+            ref
+                .read(vehicleDraftProvider.notifier)
+                .update((d) => d.copyWith(year: year));
+            _advance();
+          },
+        );
+      case 3:
+        return _FuelTransmissionQuestion(
+          variantController: _variantController,
+          draft: draft,
+          onFuelSelected: (fuel) => setState(() => ref
+              .read(vehicleDraftProvider.notifier)
+              .update((d) => d.copyWith(fuelType: fuel))),
+          onTransmissionSelected: (t) => setState(() => ref
+              .read(vehicleDraftProvider.notifier)
+              .update((d) => d.copyWith(transmission: t))),
+          onContinue: () {
+            ref.read(vehicleDraftProvider.notifier).update(
+                (d) => d.copyWith(variant: _variantController.text));
+            _advance();
+          },
+        );
+      case 4:
+        return _OwnershipQuestion(
+          onSelected: (ownerNumber) {
+            ref
+                .read(vehicleDraftProvider.notifier)
+                .update((d) => d.copyWith(ownerNumber: ownerNumber));
+            _advance();
+          },
+        );
+      case 5:
+        return _KmRangeQuestion(
+          onSelected: (km) {
+            ref
+                .read(vehicleDraftProvider.notifier)
+                .update((d) => d.copyWith(kmDriven: km));
+            _advance();
+          },
+        );
+      case 6:
+        return _CityQuestion(
+          searchController: _searchController,
+          onSelected: (id, name) {
+            ref
+                .read(vehicleDraftProvider.notifier)
+                .update((d) => d.copyWith(cityId: id, cityName: name));
+            _advance();
+          },
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+}
+
+class _BrandQuestion extends ConsumerStatefulWidget {
+  const _BrandQuestion({
+    required this.searchController,
+    required this.category,
+    required this.onSelected,
+    required this.onCategoryChanged,
+  });
+
+  final TextEditingController searchController;
+  final VehicleCategory category;
+  final void Function(int id, String name) onSelected;
+  final ValueChanged<VehicleCategory> onCategoryChanged;
+
+  @override
+  ConsumerState<_BrandQuestion> createState() => _BrandQuestionState();
+}
+
+class _BrandQuestionState extends ConsumerState<_BrandQuestion> {
+  @override
+  void initState() {
+    super.initState();
+    widget.searchController.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.searchController.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final brandsAsync = ref.watch(brandsForCategoryProvider(widget.category));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            CategoryChip(
+              label: 'Car',
+              icon: Icons.directions_car_outlined,
+              isSelected: widget.category == VehicleCategory.car,
+              onTap: () => widget.onCategoryChanged(VehicleCategory.car),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            CategoryChip(
+              label: 'Bike',
+              icon: Icons.two_wheeler_outlined,
+              isSelected: widget.category == VehicleCategory.bike,
+              onTap: () => widget.onCategoryChanged(VehicleCategory.bike),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Text.rich(
+          TextSpan(
+            text: 'Select the ',
+            style: theme.textTheme.headlineSmall,
             children: [
-              CategoryChip(
-                label: 'Car',
-                icon: Icons.directions_car_outlined,
-                isSelected: draft.category == VehicleCategory.car,
-                onTap: () => notifier.update(
-                  (d) => VehicleDraft(category: VehicleCategory.car),
-                ),
+              TextSpan(
+                text: 'brand',
+                style: theme.textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              CategoryChip(
-                label: 'Bike',
-                icon: Icons.two_wheeler_outlined,
-                isSelected: draft.category == VehicleCategory.bike,
-                onTap: () => notifier.update(
-                  (d) => VehicleDraft(category: VehicleCategory.bike),
+              const TextSpan(text: ' of your vehicle'),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        TextField(
+          controller: widget.searchController,
+          decoration: const InputDecoration(
+            hintText: 'Search your brand...',
+            prefixIcon: Icon(Icons.search),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Expanded(
+          child: brandsAsync.when(
+            data: (brands) {
+              final query = widget.searchController.text.trim().toLowerCase();
+              final filtered = query.isEmpty
+                  ? brands
+                  : brands
+                      .where((b) => b.name.toLowerCase().contains(query))
+                      .toList();
+              return GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: AppSpacing.sm,
+                  crossAxisSpacing: AppSpacing.sm,
+                  childAspectRatio: 1.3,
                 ),
+                itemCount: filtered.length,
+                itemBuilder: (context, i) {
+                  final b = filtered[i];
+                  return _OptionTile(
+                    label: b.name,
+                    onTap: () => widget.onSelected(b.id, b.name),
+                  );
+                },
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Text('Could not load brands: $e'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ModelQuestion extends ConsumerStatefulWidget {
+  const _ModelQuestion({
+    required this.searchController,
+    required this.brandId,
+    required this.onSelected,
+  });
+
+  final TextEditingController searchController;
+  final int brandId;
+  final void Function(int id, String name) onSelected;
+
+  @override
+  ConsumerState<_ModelQuestion> createState() => _ModelQuestionState();
+}
+
+class _ModelQuestionState extends ConsumerState<_ModelQuestion> {
+  @override
+  void initState() {
+    super.initState();
+    widget.searchController.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.searchController.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final modelsAsync = ref.watch(modelsForBrandProvider(widget.brandId));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          TextSpan(
+            text: 'Select the ',
+            style: theme.textTheme.headlineSmall,
+            children: [
+              TextSpan(
+                text: 'model',
+                style: theme.textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const TextSpan(text: ' of your vehicle'),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        TextField(
+          controller: widget.searchController,
+          decoration: const InputDecoration(
+            hintText: 'Search your model...',
+            prefixIcon: Icon(Icons.search),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Expanded(
+          child: modelsAsync.when(
+            data: (models) {
+              final query = widget.searchController.text.trim().toLowerCase();
+              final filtered = query.isEmpty
+                  ? models
+                  : models
+                      .where((m) => m.name.toLowerCase().contains(query))
+                      .toList();
+              return GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: AppSpacing.sm,
+                  crossAxisSpacing: AppSpacing.sm,
+                  childAspectRatio: 1.3,
+                ),
+                itemCount: filtered.length,
+                itemBuilder: (context, i) {
+                  final m = filtered[i];
+                  return _OptionTile(
+                    label: m.name,
+                    onTap: () => widget.onSelected(m.id, m.name),
+                  );
+                },
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Text('Could not load models: $e'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _YearQuestion extends StatelessWidget {
+  const _YearQuestion({required this.onSelected});
+
+  final void Function(int year) onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final currentYear = DateTime.now().year;
+    final years = List.generate(currentYear - 2004, (i) => currentYear - i);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          TextSpan(
+            text: 'Select the ',
+            style: theme.textTheme.headlineSmall,
+            children: [
+              TextSpan(
+                text: 'manufacturing year',
+                style: theme.textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
-
-          const SizedBox(height: AppSpacing.md),
-          Text('Brand', style: theme.textTheme.labelLarge),
-          const SizedBox(height: AppSpacing.xs),
-          brandsAsync.when(
-            data: (brands) => DropdownButtonFormField<int>(
-              initialValue: draft.brandId,
-              hint: const Text('Select brand'),
-              isExpanded: true,
-              items: brands
-                  .map(
-                    (b) => DropdownMenuItem(value: b.id, child: Text(b.name)),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                final brand = brands.firstWhere((b) => b.id == value);
-                notifier.update(
-                  (d) => d.copyWith(
-                    brandId: value,
-                    brandName: brand.name,
-                    modelId: null,
-                  ),
-                );
-              },
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Expanded(
+          child: ListView.separated(
+            itemCount: years.length,
+            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+            itemBuilder: (context, i) => _OptionTile(
+              label: '${years[i]}',
+              fullWidth: true,
+              onTap: () => onSelected(years[i]),
             ),
-            loading: () => const LinearProgressIndicator(),
-            error: (e, _) =>
-                Text('Could not load brands', style: theme.textTheme.bodySmall),
           ),
+        ),
+      ],
+    );
+  }
+}
 
-          const SizedBox(height: AppSpacing.md),
-          Text('Model', style: theme.textTheme.labelLarge),
-          const SizedBox(height: AppSpacing.xs),
-          if (draft.brandId == null)
-            Text('Select a brand first', style: theme.textTheme.bodySmall)
-          else
-            Consumer(
-              builder: (context, ref, _) {
-                final modelsAsync = ref.watch(
-                  modelsForBrandProvider(draft.brandId!),
-                );
-                return modelsAsync.when(
-                  data: (models) => DropdownButtonFormField<int>(
-                    initialValue: draft.modelId,
-                    hint: const Text('Select model'),
-                    isExpanded: true,
-                    items: models
-                        .map(
-                          (m) => DropdownMenuItem(
-                            value: m.id,
-                            child: Text(m.name),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      final model = models.firstWhere((m) => m.id == value);
-                      notifier.update(
-                        (d) =>
-                            d.copyWith(modelId: value, modelName: model.name),
-                      );
-                    },
-                  ),
-                  loading: () => const LinearProgressIndicator(),
-                  error: (e, _) => Text(
-                    'Could not load models',
-                    style: theme.textTheme.bodySmall,
-                  ),
-                );
-              },
+class _FuelTransmissionQuestion extends StatelessWidget {
+  const _FuelTransmissionQuestion({
+    required this.variantController,
+    required this.draft,
+    required this.onFuelSelected,
+    required this.onTransmissionSelected,
+    required this.onContinue,
+  });
+
+  final TextEditingController variantController;
+  final VehicleDraft draft;
+  final ValueChanged<FuelType> onFuelSelected;
+  final ValueChanged<TransmissionType> onTransmissionSelected;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ready = draft.fuelType != null && draft.transmission != null;
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text.rich(
+            TextSpan(
+              text: 'Select the ',
+              style: theme.textTheme.headlineSmall,
+              children: [
+                TextSpan(
+                  text: 'variant',
+                  style: theme.textTheme.headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const TextSpan(text: ' of your vehicle'),
+              ],
             ),
-
-          const SizedBox(height: AppSpacing.md),
-          Text('Variant (optional)', style: theme.textTheme.labelLarge),
-          const SizedBox(height: AppSpacing.xs),
-          TextFormField(
-            controller: _variantController,
-            decoration: const InputDecoration(hintText: 'e.g. VXI, SX, ZXI'),
-            onChanged: (value) =>
-                notifier.update((d) => d.copyWith(variant: value)),
           ),
-
           const SizedBox(height: AppSpacing.md),
-          Text('Year', style: theme.textTheme.labelLarge),
-          const SizedBox(height: AppSpacing.xs),
-          DropdownButtonFormField<int>(
-            initialValue: draft.year,
-            hint: const Text('Select year'),
-            isExpanded: true,
-            items: List.generate(currentYear - 2004, (i) => currentYear - i)
-                .map((y) => DropdownMenuItem(value: y, child: Text('$y')))
-                .toList(),
-            onChanged: (value) =>
-                notifier.update((d) => d.copyWith(year: value)),
-          ),
-
-          const SizedBox(height: AppSpacing.md),
-          Text('Fuel Type', style: theme.textTheme.labelLarge),
+          Text('SELECT FUEL TYPE', style: theme.textTheme.labelSmall),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
             spacing: AppSpacing.xs,
@@ -306,14 +666,12 @@ class _VehicleInfoStepState extends ConsumerState<_VehicleInfoStep> {
                   fuel.name[0].toUpperCase() + fuel.name.substring(1),
                 ),
                 selected: draft.fuelType == fuel,
-                onSelected: (_) =>
-                    notifier.update((d) => d.copyWith(fuelType: fuel)),
+                onSelected: (_) => onFuelSelected(fuel),
               );
             }).toList(),
           ),
-
           const SizedBox(height: AppSpacing.md),
-          Text('Transmission', style: theme.textTheme.labelLarge),
+          Text('SELECT TRANSMISSION', style: theme.textTheme.labelSmall),
           const SizedBox(height: AppSpacing.xs),
           Wrap(
             spacing: AppSpacing.xs,
@@ -321,40 +679,262 @@ class _VehicleInfoStepState extends ConsumerState<_VehicleInfoStep> {
               return ChoiceChip(
                 label: Text(t.name[0].toUpperCase() + t.name.substring(1)),
                 selected: draft.transmission == t,
-                onSelected: (_) =>
-                    notifier.update((d) => d.copyWith(transmission: t)),
+                onSelected: (_) => onTransmissionSelected(t),
               );
             }).toList(),
           ),
-
           const SizedBox(height: AppSpacing.md),
-          Text('KM Driven', style: theme.textTheme.labelLarge),
+          Text('VARIANT (OPTIONAL)', style: theme.textTheme.labelSmall),
           const SizedBox(height: AppSpacing.xs),
           TextFormField(
-            controller: _kmController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(hintText: 'e.g. 35000'),
-            onChanged: (value) => notifier.update(
-              (d) => d.copyWith(kmDriven: int.tryParse(value)),
-            ),
+            controller: variantController,
+            decoration: const InputDecoration(hintText: 'e.g. VXI, SX, ZXI'),
           ),
-
           const SizedBox(height: AppSpacing.lg),
           AppButton.primary(
-            label: 'Next',
-            onPressed: draft.isStep1Complete
-                ? () => ref.read(sellStepProvider.notifier).next()
-                : null,
+            label: 'Continue',
+            onPressed: ready ? onContinue : null,
           ),
-          const SizedBox(height: AppSpacing.md),
         ],
       ),
     );
   }
 }
 
+class _OwnershipQuestion extends StatelessWidget {
+  const _OwnershipQuestion({required this.onSelected});
+
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          TextSpan(
+            text: 'Select the ',
+            style: theme.textTheme.headlineSmall,
+            children: [
+              TextSpan(
+                text: 'ownership history',
+                style: theme.textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const TextSpan(text: ' of your vehicle'),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Expanded(
+          child: ListView.separated(
+            itemCount: OwnershipOption.all.length,
+            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+            itemBuilder: (context, i) {
+              final o = OwnershipOption.all[i];
+              return _OptionTile(
+                label: o.label,
+                fullWidth: true,
+                onTap: () => onSelected(o.ownerNumber),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _KmRangeQuestion extends StatelessWidget {
+  const _KmRangeQuestion({required this.onSelected});
+
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          TextSpan(
+            text: 'Select the ',
+            style: theme.textTheme.headlineSmall,
+            children: [
+              TextSpan(
+                text: 'kilometers driven',
+                style: theme.textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const TextSpan(text: ' by your vehicle'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          "You'll confirm the exact reading with an odometer photo later.",
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Expanded(
+          child: ListView.separated(
+            itemCount: KmRangeBucket.all.length,
+            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+            itemBuilder: (context, i) {
+              final b = KmRangeBucket.all[i];
+              return _OptionTile(
+                label: b.label,
+                fullWidth: true,
+                onTap: () => onSelected(b.representativeKm),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CityQuestion extends ConsumerStatefulWidget {
+  const _CityQuestion({
+    required this.searchController,
+    required this.onSelected,
+  });
+
+  final TextEditingController searchController;
+  final void Function(int id, String name) onSelected;
+
+  @override
+  ConsumerState<_CityQuestion> createState() => _CityQuestionState();
+}
+
+class _CityQuestionState extends ConsumerState<_CityQuestion> {
+  @override
+  void initState() {
+    super.initState();
+    widget.searchController.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.searchController.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() => setState(() {});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final citiesAsync = ref.watch(citiesProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          TextSpan(
+            text: 'Select ',
+            style: theme.textTheme.headlineSmall,
+            children: [
+              TextSpan(
+                text: 'registration city',
+                style: theme.textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const TextSpan(text: ' of your vehicle'),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        TextField(
+          controller: widget.searchController,
+          decoration: const InputDecoration(
+            hintText: 'Search your city...',
+            prefixIcon: Icon(Icons.search),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Expanded(
+          child: citiesAsync.when(
+            data: (cities) {
+              final query = widget.searchController.text.trim().toLowerCase();
+              final filtered = query.isEmpty
+                  ? cities
+                  : cities
+                      .where((c) => c.name.toLowerCase().contains(query))
+                      .toList();
+              return GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: AppSpacing.sm,
+                  crossAxisSpacing: AppSpacing.sm,
+                  childAspectRatio: 1.3,
+                ),
+                itemCount: filtered.length,
+                itemBuilder: (context, i) {
+                  final c = filtered[i];
+                  return _OptionTile(
+                    label: c.name,
+                    onTap: () => widget.onSelected(c.id, c.name),
+                  );
+                },
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Text('Could not load cities: $e'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A single tappable option -- used for brand/model/city grid cells and for
+/// full-width list rows (year/ownership/km-range).
+class _OptionTile extends StatelessWidget {
+  const _OptionTile({
+    required this.label,
+    required this.onTap,
+    this.fullWidth = false,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool fullWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest,
+      borderRadius: AppRadius.smAll,
+      child: InkWell(
+        borderRadius: AppRadius.smAll,
+        onTap: onTap,
+        child: Container(
+          alignment: fullWidth ? Alignment.centerLeft : Alignment.center,
+          padding: EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: fullWidth ? AppSpacing.md : AppSpacing.sm,
+          ),
+          child: Text(
+            label,
+            textAlign: fullWidth ? TextAlign.left : TextAlign.center,
+            maxLines: fullWidth ? 1 : 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ============================================================================
-// STEP 2 -- Price & Location (unchanged)
+// STEP 2 -- Price & Registration (city removed -- now asked in the Step 1
+// Details wizard. This step is just price, description, and the private
+// registration number.)
 // ============================================================================
 class _PriceLocationStep extends ConsumerStatefulWidget {
   const _PriceLocationStep({super.key});
@@ -396,7 +976,6 @@ class _PriceLocationStepState extends ConsumerState<_PriceLocationStep> {
     final theme = Theme.of(context);
     final draft = ref.watch(vehicleDraftProvider);
     final notifier = ref.read(vehicleDraftProvider.notifier);
-    final citiesAsync = ref.watch(citiesProvider);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -412,31 +991,6 @@ class _PriceLocationStepState extends ConsumerState<_PriceLocationStep> {
             onChanged: (value) => notifier.update(
               (d) => d.copyWith(price: double.tryParse(value)),
             ),
-          ),
-
-          const SizedBox(height: AppSpacing.md),
-          Text('City', style: theme.textTheme.labelLarge),
-          const SizedBox(height: AppSpacing.xs),
-          citiesAsync.when(
-            data: (cities) => DropdownButtonFormField<int>(
-              initialValue: draft.cityId,
-              hint: const Text('Select city'),
-              isExpanded: true,
-              items: cities
-                  .map(
-                    (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                final city = cities.firstWhere((c) => c.id == value);
-                notifier.update(
-                  (d) => d.copyWith(cityId: value, cityName: city.name),
-                );
-              },
-            ),
-            loading: () => const LinearProgressIndicator(),
-            error: (e, _) =>
-                Text('Could not load cities', style: theme.textTheme.bodySmall),
           ),
 
           const SizedBox(height: AppSpacing.md),
@@ -497,6 +1051,7 @@ class _PriceLocationStepState extends ConsumerState<_PriceLocationStep> {
     );
   }
 }
+
 
 // ============================================================================
 // STEP 3 -- Photos (REPLACED: structured checklist instead of free-form
